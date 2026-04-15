@@ -1,13 +1,13 @@
 {
-  "version": 2,
-  "buildCommand": "cd frontend && npm install && npm run build",
-  "installCommand": "cd backend && npm install",
-  "functions": {
-    "backend/server.js": {
-      "includeFiles": "frontend/dist/**"
+  "experimentalServices": {
+    "frontend": {
+      "entrypoint": "frontend",
+      "routePrefix": "/",
+      "framework": "vite"
+    },
+    "backend": {
+      "entrypoint": "backend",
+      "routePrefix": "/api"
     }
-  },
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/backend/server.js" }
-  ]
+  }
 }
