@@ -128,11 +128,20 @@ function normalizeOfficial(raw, optionType) {
 }
 
 // ─── 3. Mock fallback ─────────────────────────────────────────────────────────
+// Approximate prices used when all external APIs are unreachable
+const STATIC_PRICES = {
+  BTC: 85000, ETH: 1600, BNB: 600, XRP: 2.0,
+  SOL: 130, PAXG: 3200, DOGE: 0.18, TON: 3.5,
+  ADA: 0.7, AVAX: 20,
+};
+
 function buildMockProducts(prices) {
   const mocks = [];
   for (const coin of TARGET_COINS) {
-    if (!prices[coin]) continue;
-    const price = prices[coin].price;
+    // Use real price if available, fall back to static approximation
+    const entry = prices[coin] || (STATIC_PRICES[coin] ? { price: STATIC_PRICES[coin] } : null);
+    if (!entry) continue;
+    const price = entry.price;
     mocks.push({ coin, direction: 'BUY',  apy: 35 + Math.random() * 30,
       strikePrice: parseFloat((price * 0.97).toFixed(4)),
       daysToExpiry: [1, 3, 7][Math.floor(Math.random() * 3)], isMock: true });
