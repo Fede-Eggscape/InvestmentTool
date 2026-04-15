@@ -29,4 +29,9 @@ router.get('/cache-stats', (req, res) => {
   res.json(cache.getStats());
 });
 
+// GET /api/binance/ping — confirm serverless function is running
+router.get('/ping', (req, res) => {
+  res.json({ ok: true, ts: Date.now(), region: process.env.VERCEL_REGION || 'local', node: process.version });
+});
+
 module.exports = router;
