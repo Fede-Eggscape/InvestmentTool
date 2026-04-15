@@ -29,14 +29,17 @@ app.get(['/api/health', '/health'], (req, res) => {
 // Routes
 registerRoutes(app);
 
-// Serve frontend in production
+// Serve frontend in production only when running as a single combined server
+// (not needed on Vercel where frontend is served as static via CDN)
 if (isProd) {
+  const fs = require('fs');
   const frontendDist = path.join(__dirname, '../frontend/dist');
-  app.use(express.static(frontendDist));
-  // SPA fallback: all non-API routes serve index.html
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(frontendDist, 'index.html'));
-  });
+  if (fs.existsSync(frontendDist)) {
+    app.use(express.static(frontendDist));
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(frontendDist, 'index.html'));
+    });
+  }
 }
 
 // Error handler (must be last)
