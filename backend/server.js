@@ -42,7 +42,13 @@ if (isProd) {
 // Error handler (must be last)
 app.use(errorHandler);
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`[SERVER] Investment App Backend running on http://localhost:${PORT}`);
-  console.log(`[SERVER] Health: http://localhost:${PORT}/api/health`);
-});
+// Escuchar solo cuando se corre directamente (local), no en Vercel
+if (require.main === module) {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`[SERVER] Investment App Backend running on http://localhost:${PORT}`);
+    console.log(`[SERVER] Health: http://localhost:${PORT}/api/health`);
+  });
+}
+
+// Exportar para Vercel (serverless)
+module.exports = app;

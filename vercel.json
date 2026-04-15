@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "buildCommand": "cd frontend && npm install && npm run build",
+  "installCommand": "cd backend && npm install",
+  "functions": {
+    "backend/server.js": {
+      "includeFiles": "frontend/dist/**"
+    }
+  },
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/backend/server.js" }
+  ]
+}
