@@ -45,7 +45,7 @@ if (isProd) {
 // Error handler (must be last)
 app.use(errorHandler);
 
-// Escuchar solo cuando se corre directamente (local), no en Vercel
+// Escuchar solo cuando se corre directamente
 if (require.main === module) {
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`[SERVER] Investment App Backend running on http://localhost:${PORT}`);
