@@ -1,7 +1,14 @@
 import { useState } from 'react';
 import { useMarketSummary } from '../../hooks/useMarketSummary';
 import CapitalAllocator from '../shared/CapitalAllocator';
-import Tooltip, { InfoTip } from '../shared/Tooltip';
+import Tooltip from '../shared/Tooltip';
+
+const SENTIMENT_UI = {
+  emerald: { cls: 'bg-emerald-900/60 text-emerald-300 border-emerald-600/60' },
+  red:     { cls: 'bg-red-900/60     text-red-300     border-red-700/60'     },
+  orange:  { cls: 'bg-orange-900/60  text-orange-300  border-orange-700/60'  },
+  slate:   { cls: 'bg-slate-800/80   text-slate-300   border-slate-700'      },
+};
 
 export default function MarketDashboard() {
   const { data, isLoading } = useMarketSummary();
@@ -9,118 +16,95 @@ export default function MarketDashboard() {
 
   if (isLoading || !data) return null;
 
-  const sentimentConfig = {
-    emerald: { cls: 'bg-emerald-900/50 text-emerald-300 border-emerald-700/60', icon: '🟢' },
-    red:     { cls: 'bg-red-900/50     text-red-300     border-red-700/60',     icon: '🔴' },
-    orange:  { cls: 'bg-orange-900/50  text-orange-300  border-orange-700/60',  icon: '🟡' },
-    slate:   { cls: 'bg-slate-800/80   text-slate-400   border-slate-700',      icon: '⚪' },
-  }[data.sentimentColor] ?? { cls: 'bg-slate-800 text-slate-400 border-slate-700', icon: '⚪' };
+  const sUI = SENTIMENT_UI[data.sentimentColor] ?? SENTIMENT_UI.slate;
 
   return (
     <>
-      <div className="bg-slate-900/90 border-b border-slate-800 px-4 py-2.5 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">
+      <div className="bg-slate-900 border-b border-slate-800 px-6 py-4">
 
-        {/* Sentiment badge */}
-        <Tooltip text="Resumen del estado general del mercado basado en las tendencias de todas las monedas monitoreadas." position="bottom">
-          <span className={`flex items-center gap-1.5 px-3 py-1 rounded-full border font-bold text-xs tracking-wide cursor-default ${sentimentConfig.cls}`}>
-            <span>{sentimentConfig.icon}</span>
-            Mercado: {data.sentiment}
-          </span>
-        </Tooltip>
+        {/* Hero: resumen de las mejores opciones */}
+        <div className="flex flex-wrap gap-3 items-stretch">
 
-        {/* Divider */}
-        <span className="text-slate-700 hidden sm:block">|</span>
+          {/* Sentimiento de mercado */}
+          <Tooltip text="Estado general del mercado basado en las tendencias de todas las monedas monitoreadas." position="bottom">
+            <div className={`flex flex-col justify-center px-4 py-3 rounded-xl border cursor-default min-w-[130px] ${sUI.cls}`}>
+              <div className="text-xs opacity-60 uppercase tracking-wider mb-1 font-semibold">Mercado</div>
+              <div className="font-black text-lg leading-tight">{data.sentiment}</div>
+              <div className="text-xs opacity-60 mt-1 font-medium">
+                <span className="text-emerald-400">{data.bullish}↑</span>{' '}
+                <span className="text-slate-400">{data.neutral}→</span>{' '}
+                <span className="text-red-400">{data.bearish}↓</span>
+              </div>
+            </div>
+          </Tooltip>
 
-        {/* Coin breakdown */}
-        <div className="flex items-center gap-2 text-xs">
-          <Tooltip text="Monedas con precio en alza en las últimas 24h." position="bottom">
-            <span className="flex items-center gap-1 cursor-default">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
-              <span className="text-emerald-400 font-semibold">{data.bullish}</span>
-              <span className="text-slate-600">alcistas</span>
-            </span>
-          </Tooltip>
-          <span className="text-slate-700">·</span>
-          <Tooltip text="Monedas con precio estable (cambio menor a ±2%) en las últimas 24h." position="bottom">
-            <span className="flex items-center gap-1 cursor-default">
-              <span className="w-1.5 h-1.5 rounded-full bg-slate-500 inline-block" />
-              <span className="text-slate-400 font-semibold">{data.neutral}</span>
-              <span className="text-slate-600">neutras</span>
-            </span>
-          </Tooltip>
-          <span className="text-slate-700">·</span>
-          <Tooltip text="Monedas con precio en baja en las últimas 24h." position="bottom">
-            <span className="flex items-center gap-1 cursor-default">
-              <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" />
-              <span className="text-red-400 font-semibold">{data.bearish}</span>
-              <span className="text-slate-600">bajistas</span>
-            </span>
-          </Tooltip>
+          {/* Mejor Dual Investment */}
+          {data.bestDual && (
+            <Tooltip text={`Mejor producto de Dual Investment ahora. Dirección: ${data.bestDual.direction === 'BUY' ? 'Comprar (BUY)' : 'Vender (SELL)'}.`} position="bottom">
+              <div className="flex flex-col justify-center px-4 py-3 rounded-xl border border-emerald-700/50 bg-emerald-950/40 cursor-default min-w-[190px]">
+                <div className="text-xs text-slate-400 uppercase tracking-wider mb-1 font-semibold">Mejor Dual Investment</div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-2xl font-black text-emerald-300">{data.bestDual.apy.toFixed(1)}%</span>
+                  <span className="text-white font-bold text-base">{data.bestDual.coin}</span>
+                </div>
+                <div className="text-xs text-slate-400 mt-0.5">
+                  {data.bestDual.direction === 'BUY' ? '↓ Comprar' : '↑ Vender'} · APR anual
+                </div>
+              </div>
+            </Tooltip>
+          )}
+
+          {/* Mejor Pool Meteora */}
+          {data.bestPool && (
+            <Tooltip text="Pool de liquidez con mejor evaluación en Meteora según rentabilidad, fiabilidad y volumen." position="bottom">
+              <div className="flex flex-col justify-center px-4 py-3 rounded-xl border border-violet-700/50 bg-violet-950/40 cursor-default min-w-[190px]">
+                <div className="text-xs text-slate-400 uppercase tracking-wider mb-1 font-semibold">Mejor Pool Meteora</div>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="text-white font-black text-base">{data.bestPool.pair}</span>
+                  {data.bestPool.verdict && (
+                    <span className="text-xs px-2 py-0.5 bg-emerald-900/60 text-emerald-300 border border-emerald-700/50 rounded-full font-bold">
+                      {data.bestPool.verdict}
+                    </span>
+                  )}
+                </div>
+                <div className="text-xs text-slate-400 mt-0.5">Calificación máxima</div>
+              </div>
+            </Tooltip>
+          )}
+
+          {/* Asignar capital */}
+          <div className="ml-auto flex items-center">
+            <Tooltip text="Ingresá un monto y el sistema te recomienda cómo distribuirlo entre los mejores productos disponibles." position="bottom">
+              <button
+                onClick={() => setShowAllocator(v => !v)}
+                className={`flex flex-col items-center gap-1 px-5 py-3 rounded-xl border text-sm font-semibold transition-all h-full
+                  ${showAllocator
+                    ? 'bg-amber-900/60 text-amber-300 border-amber-700'
+                    : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:border-slate-500 hover:bg-slate-800'}`}
+              >
+                <span className="text-xl">💰</span>
+                <span className="text-xs">Asignar capital</span>
+              </button>
+            </Tooltip>
+          </div>
         </div>
 
-        {/* Divider */}
-        <span className="text-slate-700 hidden sm:block">|</span>
-
-        {/* Avg change */}
-        <Tooltip text="Variación promedio de precio de todas las monedas monitoreadas en las últimas 24 horas." position="bottom">
-          <span className="flex items-center gap-1.5 cursor-default">
-            <span className="text-slate-500">Δ 24h</span>
-            <span className={`font-bold ${data.avgChange >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+        {/* Stats secundarias */}
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 mt-3 text-xs text-slate-500">
+          <span>
+            Cambio 24h{' '}
+            <span className={`font-semibold ${data.avgChange >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
               {data.avgChange >= 0 ? '+' : ''}{data.avgChange}%
             </span>
           </span>
-        </Tooltip>
-
-        {/* Avg vol */}
-        {data.avgVol != null && (
-          <Tooltip text="Volatilidad anualizada promedio del mercado. Alta = precios con movimientos bruscos. Baja = mercado más tranquilo." position="bottom">
-            <span className="flex items-center gap-1.5 cursor-default">
-              <span className="text-slate-500">Vol ~</span>
+          {data.avgVol != null && (
+            <span>
+              Volatilidad{' '}
               <span className="text-slate-300 font-semibold">{data.avgVol}%</span>
             </span>
-          </Tooltip>
-        )}
+          )}
+        </div>
 
-        {/* Best DCI */}
-        {data.bestDual && (
-          <Tooltip text={`Mejor producto de Dual Investment en este momento según APR. Dirección: ${data.bestDual.direction === 'BUY' ? 'compra (BUY)' : 'venta (SELL)'}.`} position="bottom">
-            <span className="hidden md:flex items-center gap-1.5 cursor-default">
-              <span className="text-slate-500">Mejor DCI</span>
-              <span className="text-blue-300 font-semibold">
-                {data.bestDual.coin} {data.bestDual.direction === 'BUY' ? '↓' : '↑'}
-              </span>
-              <span className="text-emerald-300 font-bold">{data.bestDual.apy.toFixed(1)}%</span>
-            </span>
-          </Tooltip>
-        )}
-
-        {/* Best Pool */}
-        {data.bestPool && (
-          <Tooltip text="Pool de liquidez con mejor evaluación en Meteora según rentabilidad, fiabilidad y volumen." position="bottom">
-            <span className="hidden lg:flex items-center gap-1.5 cursor-default">
-              <span className="text-slate-500">Mejor pool</span>
-              <span className="text-violet-300 font-semibold">{data.bestPool.pair}</span>
-              {data.bestPool.verdict && (
-                <span className="text-emerald-300 font-semibold text-xs px-1.5 py-0.5 bg-emerald-900/30 rounded border border-emerald-800/40">
-                  {data.bestPool.verdict}
-                </span>
-              )}
-            </span>
-          </Tooltip>
-        )}
-
-        {/* Capital allocator toggle */}
-        <Tooltip text="Ingresá un monto y el sistema te recomienda cómo distribuirlo entre los mejores productos disponibles." position="bottom">
-          <button
-            onClick={() => setShowAllocator(v => !v)}
-            className={`ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all
-              ${showAllocator
-                ? 'bg-amber-900/60 text-amber-300 border-amber-700 shadow-inner'
-                : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:border-slate-500 hover:bg-slate-800'}`}
-          >
-            💰 Asignar capital
-          </button>
-        </Tooltip>
       </div>
 
       {showAllocator && <CapitalAllocator onClose={() => setShowAllocator(false)} />}

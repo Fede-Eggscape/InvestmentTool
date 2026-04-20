@@ -1,8 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useMeteoraPools } from '../../hooks/useMeteoraPools';
-import MeteoraRow from './MeteoraRow';
+import MeteoraCard from './MeteoraRow';
 import MeteoraFilters from './MeteoraFilters';
-import SortableHeader from '../shared/SortableHeader';
 import LoadingSpinner from '../shared/LoadingSpinner';
 import ErrorAlert from '../shared/ErrorAlert';
 import StatusBar from '../layout/StatusBar';
@@ -11,6 +10,8 @@ import { TARGET_COINS } from '../../constants/coins';
 
 const DEFAULT_FILTERS = { coin: '', type: '', minApy: '', minTvl: '' };
 const DEFAULT_SORT = { field: 'apy', dir: 'desc' };
+
+const VERDICT_ORDER = { EXCELENTE: 0, BUENA: 1, ACEPTABLE: 2, 'PRECAUCIÓN': 3, EVITAR: 4 };
 
 export default function MeteoraTable() {
   const { data, isLoading, isError, error, dataUpdatedAt, refetch, isFetching } = useMeteoraPools();
@@ -34,63 +35,43 @@ export default function MeteoraTable() {
   const sorted = useMemo(() => {
     const { field, dir } = sort;
     return [...filtered].sort((a, b) => {
-      const av = a[field] ?? 0, bv = b[field] ?? 0;
+      let av, bv;
+      if (field === 'verdict') {
+        av = VERDICT_ORDER[a.analysis?.verdict] ?? 5;
+        bv = VERDICT_ORDER[b.analysis?.verdict] ?? 5;
+      } else {
+        av = a[field] ?? 0;
+        bv = b[field] ?? 0;
+      }
       if (typeof av === 'string') return dir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
       return dir === 'asc' ? av - bv : bv - av;
     });
   }, [filtered, sort]);
 
-  function toggleSort(field) {
-    setSort(prev =>
-      prev.field === field
-        ? { field, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
-        : { field, dir: 'desc' }
-    );
-  }
-
-  // Stats
   const totalTvl = pools.reduce((s, p) => s + p.tvl, 0);
   const bestApy = pools.reduce((max, p) => p.apy > max ? p.apy : max, 0);
-  const avgDailyYield = pools.length
-    ? pools.reduce((s, p) => s + p.dailyYield, 0) / pools.length
-    : 0;
+  const excellentCount = pools.filter(p => p.analysis?.verdict === 'EXCELENTE' || p.analysis?.verdict === 'BUENA').length;
 
   if (isLoading) return <LoadingSpinner message="Cargando pools de Meteora..." />;
 
   return (
     <div>
-      <StatusBar
-        updatedAt={dataUpdatedAt}
-        intervalMs={120_000}
-        isLoading={isFetching}
-        isStale={data?._stale}
-      />
+      <StatusBar updatedAt={dataUpdatedAt} intervalMs={120_000} isLoading={isFetching} isStale={data?._stale} />
 
-      {/* Stats */}
-      <div className="flex flex-wrap gap-4 px-6 py-3 bg-slate-900/50 border-b border-slate-800 text-sm">
-        <div className="flex items-center gap-2">
-          <span className="text-slate-400">Total pools:</span>
-          <span className="text-slate-100 font-semibold">{pools.length}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-slate-400">DLMM:</span>
-          <span className="text-violet-400 font-semibold">{data?.dlmmCount ?? 0}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-slate-400">Dynamic:</span>
-          <span className="text-blue-400 font-semibold">{data?.dynamicCount ?? 0}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-slate-400">TVL total:</span>
-          <span className="text-slate-100 font-semibold">{fmtCompact(totalTvl)}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-slate-400">Mejor APY:</span>
-          <span className="text-emerald-300 font-bold">{fmtPercent(bestApy)}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-slate-400">Yield/Día promedio:</span>
-          <span className="text-emerald-400 font-semibold">{fmtPercent(avgDailyYield)}</span>
+      {/* Stats bar */}
+      <div className="flex flex-wrap gap-4 px-6 py-3 bg-slate-900/50 border-b border-slate-800 text-sm items-center">
+        <StatChip label="Total pools" value={pools.length} />
+        <StatChip label="Recomendadas" value={excellentCount} color="text-emerald-400" />
+        <StatChip label="Mejor APY" value={`${bestApy.toFixed(1)}%`} color="text-emerald-300" />
+        <StatChip label="TVL total" value={fmtCompact(totalTvl)} />
+
+        {/* Sort controls */}
+        <div className="ml-auto flex items-center gap-2 text-xs">
+          <span className="text-slate-500">Ordenar:</span>
+          <SortBtn label="APY" active={sort.field === 'apy'} onClick={() => setSort({ field: 'apy', dir: 'desc' })} />
+          <SortBtn label="Calificación" active={sort.field === 'verdict'} onClick={() => setSort({ field: 'verdict', dir: 'asc' })} />
+          <SortBtn label="TVL" active={sort.field === 'tvl'} onClick={() => setSort({ field: 'tvl', dir: 'desc' })} />
+          <SortBtn label="Rend./Día" active={sort.field === 'dailyYield'} onClick={() => setSort({ field: 'dailyYield', dir: 'desc' })} />
         </div>
       </div>
 
@@ -105,9 +86,7 @@ export default function MeteoraTable() {
         <div className="px-6 py-8 text-center text-slate-500">
           <p className="text-lg mb-2">Sin pools disponibles</p>
           <p className="text-sm">Las APIs de Meteora pueden no estar accesibles desde este servidor.</p>
-          <p className="text-xs mt-2 text-slate-600">
-            Monedas buscadas: {TARGET_COINS.join(', ')}
-          </p>
+          <p className="text-xs mt-2 text-slate-600">Monedas buscadas: {TARGET_COINS.join(', ')}</p>
         </div>
       )}
 
@@ -115,42 +94,50 @@ export default function MeteoraTable() {
         <>
           <MeteoraFilters filters={filters} onChange={setFilters} />
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-900 sticky top-0 z-10">
-                <tr>
-                  <SortableHeader label="Par"         field="pair"       currentSort={sort} onSort={toggleSort} />
-                  <SortableHeader label="Tipo"        field="type"       currentSort={sort} onSort={toggleSort} />
-                  <SortableHeader label="APY"         field="apy"        currentSort={sort} onSort={toggleSort} align="right" />
-                  <SortableHeader label="Fees 24h"    field="fees24h"    currentSort={sort} onSort={toggleSort} align="right" />
-                  <SortableHeader label="TVL"         field="tvl"        currentSort={sort} onSort={toggleSort} align="right" />
-                  <SortableHeader label="Volumen 24h" field="vol24h"     currentSort={sort} onSort={toggleSort} align="right" />
-                  <SortableHeader label="Rend./Día"   field="dailyYield" currentSort={sort} onSort={toggleSort} align="right" />
-                </tr>
-              </thead>
-              <tbody>
-                {sorted.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="text-center py-12 text-slate-500">
-                      No hay pools que coincidan con los filtros
-                    </td>
-                  </tr>
-                ) : (
-                  sorted.map((pool, i) => (
-                    <MeteoraRow key={pool.id || i} pool={pool} />
-                  ))
-                )}
-              </tbody>
-            </table>
+          <div className="px-6 py-5">
+            {sorted.length === 0 ? (
+              <div className="text-center py-12 text-slate-500">
+                No hay pools que coincidan con los filtros
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {sorted.map((pool, i) => (
+                  <MeteoraCard key={pool.id || i} pool={pool} isFirst={i === 0} />
+                ))}
+              </div>
+            )}
           </div>
 
           {sorted.length > 0 && (
-            <div className="px-6 py-2 text-xs text-slate-600 border-t border-slate-800">
+            <div className="px-6 pb-3 text-xs text-slate-600 border-t border-slate-800 pt-2">
               Mostrando {sorted.length} de {pools.length} pools
             </div>
           )}
         </>
       )}
     </div>
+  );
+}
+
+function StatChip({ label, value, color = 'text-slate-100' }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-slate-400">{label}:</span>
+      <span className={`font-semibold ${color}`}>{value}</span>
+    </div>
+  );
+}
+
+function SortBtn({ label, active, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`px-2.5 py-1 rounded-lg border text-xs font-medium transition-colors
+        ${active
+          ? 'bg-blue-900/60 text-blue-300 border-blue-700'
+          : 'bg-slate-800/60 text-slate-400 border-slate-700 hover:border-slate-500 hover:text-slate-200'}`}
+    >
+      {label}
+    </button>
   );
 }

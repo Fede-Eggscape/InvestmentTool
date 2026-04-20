@@ -1,8 +1,48 @@
 import { useState } from 'react';
-import SignalBadge from './SignalBadge';
 import { COIN_COLORS, SIGNAL_CONFIG } from '../../constants/coins';
 import { fmtPercent, fmtPrice, fmtChange } from '../../utils/formatters';
 import { InfoTip } from '../shared/Tooltip';
+
+const SIGNAL_ORDER = { STRONG_BUY: 0, BUY: 1, NEUTRAL: 2, CAUTION: 3 };
+
+const SIGNAL_UI = {
+  STRONG_BUY: {
+    label: 'Fuerte Compra',
+    headerBg: 'bg-emerald-900',
+    headerText: 'text-emerald-200',
+    border: 'border-emerald-600/60',
+    dot: 'bg-emerald-400',
+    cardBg: 'bg-slate-900',
+    accentText: 'text-emerald-300',
+  },
+  BUY: {
+    label: 'Comprar',
+    headerBg: 'bg-green-950',
+    headerText: 'text-green-200',
+    border: 'border-green-700/60',
+    dot: 'bg-green-400',
+    cardBg: 'bg-slate-900',
+    accentText: 'text-green-300',
+  },
+  NEUTRAL: {
+    label: 'Esperar',
+    headerBg: 'bg-slate-800',
+    headerText: 'text-slate-300',
+    border: 'border-slate-600/60',
+    dot: 'bg-slate-400',
+    cardBg: 'bg-slate-900',
+    accentText: 'text-slate-300',
+  },
+  CAUTION: {
+    label: 'Precaución',
+    headerBg: 'bg-red-950',
+    headerText: 'text-red-200',
+    border: 'border-red-800/60',
+    dot: 'bg-red-400',
+    cardBg: 'bg-slate-900',
+    accentText: 'text-red-300',
+  },
+};
 
 const MOMENTUM_LABEL = {
   STRONG_UP:   { text: 'Fuerte alza',   color: 'text-emerald-400' },
@@ -11,6 +51,15 @@ const MOMENTUM_LABEL = {
   STRONG_DOWN: { text: 'Fuerte caída',  color: 'text-red-400'     },
   UNKNOWN:     { text: 'Desconocido',   color: 'text-slate-500'   },
 };
+
+function pickBest(buy, sell) {
+  if (!buy && !sell) return null;
+  if (!buy) return { product: sell, isBuy: false };
+  if (!sell) return { product: buy, isBuy: true };
+  const bScore = (SIGNAL_ORDER[buy.signal] ?? 4) * 10000 - buy.apy;
+  const sScore = (SIGNAL_ORDER[sell.signal] ?? 4) * 10000 - sell.apy;
+  return bScore <= sScore ? { product: buy, isBuy: true } : { product: sell, isBuy: false };
+}
 
 function RiskBar({ value }) {
   const pct = Math.min(100, Math.max(0, value));
@@ -22,46 +71,6 @@ function RiskBar({ value }) {
   );
 }
 
-// Compact card shown in the main table row
-function OpCard({ product, isBuy }) {
-  if (!product) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <span className="text-slate-700 text-xs italic">—</span>
-      </div>
-    );
-  }
-  const { strikePrice, strikeDistance, daysToExpiry, apy, signal, confidence, reason } = product;
-
-  return (
-    <div className={`rounded-lg border px-3 py-2 space-y-1.5
-      ${isBuy ? 'border-blue-800/50 bg-blue-950/20' : 'border-purple-800/50 bg-purple-950/20'}`}>
-      {/* Line 1: direction + strike + duration */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className={`text-xs font-bold ${isBuy ? 'text-blue-300' : 'text-purple-300'}`}>
-          {isBuy ? '↓ BUY' : '↑ SELL'}
-        </span>
-        <span className="text-white font-semibold text-xs">{fmtPrice(strikePrice)}</span>
-        {strikeDistance != null && (
-          <span className={`text-xs ${isBuy ? 'text-blue-400' : 'text-purple-400'}`}>
-            ({strikeDistance > 0 ? '+' : ''}{strikeDistance}%)
-          </span>
-        )}
-        <span className={`ml-auto text-xs font-semibold px-1.5 py-0.5 rounded
-          ${isBuy ? 'bg-blue-900/60 text-blue-200' : 'bg-purple-900/60 text-purple-200'}`}>
-          {daysToExpiry}d
-        </span>
-      </div>
-      {/* Line 2: APR + signal */}
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-emerald-300 font-bold text-sm">{fmtPercent(apy)}</span>
-        <SignalBadge signal={signal} confidence={confidence} reason={reason} />
-      </div>
-    </div>
-  );
-}
-
-// Full detail section for one operation (shown in expanded panel)
 function OpDetail({ product, isBuy, currentPrice }) {
   if (!product) {
     return (
@@ -71,12 +80,7 @@ function OpDetail({ product, isBuy, currentPrice }) {
     );
   }
 
-  const {
-    apy, strikePrice, daysToExpiry, dailyYield,
-    signal, confidence, reason, strikeDistance,
-    trend, momentum,
-  } = product;
-
+  const { apy, strikePrice, daysToExpiry, dailyYield, signal, confidence, reason, strikeDistance, trend, momentum } = product;
   const mom = MOMENTUM_LABEL[momentum] || MOMENTUM_LABEL.UNKNOWN;
   const cfg = SIGNAL_CONFIG[signal] || SIGNAL_CONFIG.NEUTRAL;
   const totalReturn = parseFloat((apy / 365 * daysToExpiry).toFixed(2));
@@ -96,75 +100,64 @@ function OpDetail({ product, isBuy, currentPrice }) {
   const riskColor = riskLevel === 'Bajo' ? 'text-emerald-400' : riskLevel === 'Alto' ? 'text-red-400' : 'text-yellow-400';
 
   return (
-    <div className={`rounded-xl border p-4 space-y-4
-      ${isBuy ? 'border-blue-800/40 bg-blue-950/10' : 'border-purple-800/40 bg-purple-950/10'}`}>
-
-      {/* Header */}
+    <div className={`rounded-xl border p-4 space-y-4 ${isBuy ? 'border-blue-800/40 bg-blue-950/10' : 'border-purple-800/40 bg-purple-950/10'}`}>
       <div className="flex items-center gap-2 border-b border-slate-700/50 pb-2">
-        <span className={`text-sm font-bold px-2.5 py-1 rounded-md
-          ${isBuy ? 'bg-blue-900/60 text-blue-200 border border-blue-700' : 'bg-purple-900/60 text-purple-200 border border-purple-700'}`}>
+        <span className={`text-sm font-bold px-2.5 py-1 rounded-md ${isBuy ? 'bg-blue-900/60 text-blue-200 border border-blue-700' : 'bg-purple-900/60 text-purple-200 border border-purple-700'}`}>
           {isBuy ? '↓ COMPRA (BUY)' : '↑ VENTA (SELL)'}
         </span>
         <span className="text-slate-400 text-xs">Invertís {investAsset}</span>
       </div>
 
-      {/* Numbers */}
       <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
         <div className="flex justify-between items-center">
-          <span className="text-slate-500 flex items-center">Strike<InfoTip text="Precio al que se ejecuta la operación. Si el precio llega aquí al vencimiento, se ejerce el producto." position="right" /></span>
+          <span className="text-slate-500 flex items-center">Strike<InfoTip text="Precio al que se ejecuta la operación." position="right" /></span>
           <span className="text-white font-semibold">{fmtPrice(strikePrice)} <span className={isBuy ? 'text-blue-400' : 'text-purple-400'}>({strikeDistance > 0 ? '+' : ''}{strikeDistance}%)</span></span>
         </div>
         <div className="flex justify-between items-center">
-          <span className="text-slate-500 flex items-center">Duración<InfoTip text="Días que dura el producto. Al vencimiento se cobra el rendimiento o se ejerce." position="right" /></span>
+          <span className="text-slate-500">Duración</span>
           <span className="text-slate-200 font-medium">{daysToExpiry}d</span>
         </div>
         <div className="flex justify-between items-center">
-          <span className="text-slate-500 flex items-center">APR anual<InfoTip text="Rendimiento anualizado. Representa cuánto ganarías si repitieras el ciclo durante un año completo." position="right" /></span>
+          <span className="text-slate-500 flex items-center">APR anual<InfoTip text="Rendimiento anualizado del ciclo." position="right" /></span>
           <span className="text-emerald-300 font-bold">{fmtPercent(apy)}</span>
         </div>
         <div className="flex justify-between items-center">
-          <span className="text-slate-500 flex items-center">Rend. total<InfoTip text="Rendimiento real para este ciclo (APR × días / 365). Lo que vas a cobrar en esta operación." position="right" /></span>
+          <span className="text-slate-500">Rend. total</span>
           <span className="text-emerald-400 font-semibold">~{fmtPercent(totalReturn)}</span>
         </div>
         <div className="flex justify-between items-center">
-          <span className="text-slate-500 flex items-center">Rend./día<InfoTip text="Cuánto ganás por cada día que el capital está invertido." position="right" /></span>
+          <span className="text-slate-500">Rend./día</span>
           <span className="text-emerald-200 font-semibold">{fmtPercent(dailyYield)}</span>
         </div>
         <div className="flex justify-between items-center">
-          <span className="text-slate-500 flex items-center">Riesgo<InfoTip text="Basado en la tendencia de mercado. Bajo = tendencia a favor. Alto = tendencia en contra del strike." position="right" /></span>
+          <span className="text-slate-500">Riesgo</span>
           <span className={`font-bold ${riskColor}`}>{riskLevel}</span>
         </div>
       </div>
 
-      {/* Scenarios */}
       <div className="space-y-2">
         <div className="bg-emerald-950/40 border border-emerald-800/40 rounded-lg px-3 py-2">
-          <p className="text-emerald-300 font-semibold text-xs mb-1">
-            {isBuy ? '✅ Precio baja al strike' : '✅ Precio sube al strike'}
-          </p>
+          <p className="text-emerald-300 font-semibold text-xs mb-1">{isBuy ? '✅ Precio baja al strike' : '✅ Precio sube al strike'}</p>
           <p className="text-slate-400 text-xs leading-relaxed">{favorableDesc}</p>
         </div>
         <div className="bg-yellow-950/30 border border-yellow-800/40 rounded-lg px-3 py-2">
-          <p className="text-yellow-300 font-semibold text-xs mb-1">
-            {isBuy ? '⚠️ Precio no baja al strike' : '⚠️ Precio no sube al strike'}
-          </p>
+          <p className="text-yellow-300 font-semibold text-xs mb-1">{isBuy ? '⚠️ Precio no baja al strike' : '⚠️ Precio no sube al strike'}</p>
           <p className="text-slate-400 text-xs leading-relaxed">{unfavorableDesc}</p>
         </div>
       </div>
 
-      {/* Technical */}
       <div className="space-y-2 border-t border-slate-700/50 pt-3">
         <div className="flex items-center justify-between">
-          <span className="text-slate-500 text-xs flex items-center">Señal<InfoTip text="Evaluación técnica del momento de mercado: si es buen momento para esta operación según tendencia e indicadores." position="right" /></span>
+          <span className="text-slate-500 text-xs">Señal</span>
           <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${cfg.color}`}>{cfg.label}</span>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-slate-500 text-xs flex items-center">Confianza<InfoTip text="Qué tan fuerte es la señal técnica. A más alto, más consistentes son los indicadores que apuntan en esa dirección." position="right" /></span>
+          <span className="text-slate-500 text-xs">Confianza</span>
           <span className="text-slate-200 text-xs font-semibold">{confidence ?? '—'}%</span>
         </div>
         <RiskBar value={confidence ?? 0} />
         <div className="flex items-center justify-between">
-          <span className="text-slate-500 text-xs flex items-center">Momentum<InfoTip text="Velocidad y dirección del movimiento de precio reciente. 'Fuerte alza' significa subida acelerada." position="right" /></span>
+          <span className="text-slate-500 text-xs">Momentum</span>
           <span className={`text-xs font-semibold ${mom.color}`}>{mom.text}</span>
         </div>
         {reason && (
@@ -177,7 +170,7 @@ function OpDetail({ product, isBuy, currentPrice }) {
   );
 }
 
-function ProbGauge({ prob, label, color }) {
+function ProbGauge({ prob, label }) {
   if (prob == null) return null;
   const barColor = prob > 60 ? 'bg-red-500' : prob > 35 ? 'bg-yellow-500' : 'bg-emerald-500';
   return (
@@ -215,13 +208,12 @@ function CompoundCalc({ product, isBuy }) {
             className="bg-slate-800 border border-slate-700 rounded pl-5 pr-2 py-1 text-xs text-slate-100 w-28 focus:outline-none focus:border-slate-500"
           />
         </div>
-        <span className="text-xs text-slate-500 flex items-center">reinvirtiendo cada {daysToExpiry}d<InfoTip text="Se asume que al terminar cada ciclo reinvertís todo (capital + ganancia). Sin reinversión, el rendimiento sería menor." position="top" /></span>
+        <span className="text-xs text-slate-500">reinvirtiendo cada {daysToExpiry}d</span>
       </div>
       <div className="grid grid-cols-5 gap-2">
         {[30, 60, 90, 180, 360].map(d => (
-          <div key={d} className={`rounded-lg p-2 text-center
-            ${isBuy ? 'bg-blue-950/30 border border-blue-900/50' : 'bg-purple-950/30 border border-purple-900/50'}`}>
-            <div className="text-xs text-slate-500 mb-1">{d} días</div>
+          <div key={d} className={`rounded-lg p-2 text-center ${isBuy ? 'bg-blue-950/30 border border-blue-900/50' : 'bg-purple-950/30 border border-purple-900/50'}`}>
+            <div className="text-xs text-slate-500 mb-1">{d}d</div>
             <div className="text-sm font-bold text-slate-100">${compound(d).toLocaleString()}</div>
             <div className="text-xs text-emerald-400 font-semibold">+${profit(d).toLocaleString()}</div>
             <div className="text-xs text-slate-600">{cycles(d)} ciclos</div>
@@ -232,84 +224,54 @@ function CompoundCalc({ product, isBuy }) {
   );
 }
 
-function DualExtraAnalysis({ buy, sell, currentPrice, coin }) {
+function DualExtraAnalysis({ buy, sell }) {
   const ref = buy || sell;
   if (!ref) return null;
-
   const { weekRange, volatility } = ref;
   const fmtVol = v => v != null ? `${(v * 100).toFixed(0)}%` : '—';
 
   return (
-    <div className="border-t border-slate-700/50 pt-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
-
-      {/* 1 — Exercise probability */}
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 pt-4 border-t border-slate-700/50">
       <div className="bg-slate-800/30 rounded-xl border border-slate-700/40 p-4">
-        <h4 className="text-xs font-semibold text-slate-300 uppercase tracking-widest mb-3 flex items-center">
-          🎯 Prob. de ejercicio
-          <InfoTip text="Qué tan probable es que el precio llegue al strike al vencimiento. Bajo = es menos probable que se ejecute la operación." position="right" />
+        <h4 className="text-xs font-semibold text-slate-300 uppercase tracking-widest mb-3">
+          Prob. de ejercicio <InfoTip text="Qué tan probable es que el precio llegue al strike al vencimiento." position="right" />
         </h4>
         <div className="space-y-3">
-          {buy && (
-            <ProbGauge
-              prob={buy.exerciseProb}
-              label={`BUY: precio baja a $${buy.strikePrice?.toLocaleString()}`}
-              color="blue"
-            />
-          )}
-          {sell && (
-            <ProbGauge
-              prob={sell.exerciseProb}
-              label={`SELL: precio sube a $${sell.strikePrice?.toLocaleString()}`}
-              color="purple"
-            />
-          )}
+          {buy && <ProbGauge prob={buy.exerciseProb} label={`BUY: precio baja a $${buy.strikePrice?.toLocaleString()}`} />}
+          {sell && <ProbGauge prob={sell.exerciseProb} label={`SELL: precio sube a $${sell.strikePrice?.toLocaleString()}`} />}
           {volatility != null && (
-            <div className="text-xs text-slate-500 mt-1 flex items-center gap-1">
-              Volatilidad anual:
-              <span className="text-slate-300 font-semibold ml-1">{fmtVol(volatility)}</span>
-              <InfoTip text="Qué tanto fluctúa el precio en un año. Alta volatilidad = movimientos más bruscos = mayor probabilidad de ejercicio." position="right" />
+            <div className="text-xs text-slate-500 mt-1">
+              Volatilidad anual: <span className="text-slate-300 font-semibold">{fmtVol(volatility)}</span>
             </div>
           )}
-          <div className="text-xs text-slate-600 bg-slate-900/50 rounded-lg p-2 leading-relaxed mt-1">
-            Verde = baja prob. de ejercicio (más seguro). Rojo = alta prob. (más probable que se ejecute).
+          <div className="text-xs text-slate-600 bg-slate-900/50 rounded-lg p-2 leading-relaxed">
+            Verde = baja prob. de ejercicio. Rojo = alta prob.
           </div>
         </div>
       </div>
 
-      {/* 2 — Strike context + effective price */}
       <div className="bg-slate-800/30 rounded-xl border border-slate-700/40 p-4">
-        <h4 className="text-xs font-semibold text-slate-300 uppercase tracking-widest mb-3 flex items-center">
-          📊 Contexto de precio
-          <InfoTip text="Dónde está el precio actual dentro de su rango de la semana, y dónde quedan los strikes BUY y SELL." position="right" />
+        <h4 className="text-xs font-semibold text-slate-300 uppercase tracking-widest mb-3">
+          Contexto de precio <InfoTip text="Dónde está el precio actual en su rango semanal." position="right" />
         </h4>
         {weekRange && (
           <div className="mb-4">
             <div className="flex justify-between text-xs text-slate-500 mb-1">
               <span>${weekRange.low.toLocaleString()}</span>
-              <span className="flex items-center gap-1">
-                posición actual: <span className="text-slate-200 font-semibold">{weekRange.pricePosition}%</span>
-                <InfoTip text="Dónde está el precio actual dentro del rango de 7 días. 0% = mínimo, 100% = máximo." position="top" />
-              </span>
+              <span>posición: <span className="text-slate-200 font-semibold">{weekRange.pricePosition}%</span></span>
               <span>${weekRange.high.toLocaleString()}</span>
             </div>
-            {/* Visual range bar */}
             <div className="relative h-5 bg-slate-800/80 rounded-full overflow-hidden border border-slate-700">
               {buy && (
-                <div
-                  className="absolute top-0 h-full w-1.5 bg-blue-400 opacity-80"
-                  style={{ left: `${Math.max(0, Math.min(100, ((buy.strikePrice - weekRange.low) / (weekRange.high - weekRange.low)) * 100))}%` }}
-                />
+                <div className="absolute top-0 h-full w-1.5 bg-blue-400 opacity-80"
+                  style={{ left: `${Math.max(0, Math.min(100, ((buy.strikePrice - weekRange.low) / (weekRange.high - weekRange.low)) * 100))}%` }} />
               )}
               {sell && (
-                <div
-                  className="absolute top-0 h-full w-1.5 bg-purple-400 opacity-80"
-                  style={{ left: `${Math.max(0, Math.min(100, ((sell.strikePrice - weekRange.low) / (weekRange.high - weekRange.low)) * 100))}%` }}
-                />
+                <div className="absolute top-0 h-full w-1.5 bg-purple-400 opacity-80"
+                  style={{ left: `${Math.max(0, Math.min(100, ((sell.strikePrice - weekRange.low) / (weekRange.high - weekRange.low)) * 100))}%` }} />
               )}
-              <div
-                className="absolute top-0 h-full w-2.5 bg-white opacity-95 rounded-full shadow"
-                style={{ left: `${weekRange.pricePosition}%`, transform: 'translateX(-50%)' }}
-              />
+              <div className="absolute top-0 h-full w-2.5 bg-white opacity-95 rounded-full shadow"
+                style={{ left: `${weekRange.pricePosition}%`, transform: 'translateX(-50%)' }} />
             </div>
             <div className="flex justify-between text-xs text-slate-600 mt-1.5">
               <span className="text-blue-400">▌ BUY strike</span>
@@ -317,70 +279,51 @@ function DualExtraAnalysis({ buy, sell, currentPrice, coin }) {
               <span className="text-purple-400">▌ SELL strike</span>
             </div>
             <div className="text-xs mt-2 text-slate-500">
-              {weekRange.pricePosition > 70
-                ? '📈 Precio cerca del máximo — condiciones favorables para SELL'
-                : weekRange.pricePosition < 30
-                ? '📉 Precio cerca del mínimo — condiciones favorables para BUY'
+              {weekRange.pricePosition > 70 ? '📈 Cerca del máximo — favorable para SELL'
+                : weekRange.pricePosition < 30 ? '📉 Cerca del mínimo — favorable para BUY'
                 : '↔️ Precio en zona media'}
             </div>
           </div>
         )}
-        {/* Effective price */}
         <div className="space-y-1.5">
           {buy && (
             <div className="flex justify-between text-xs bg-blue-950/30 rounded-lg px-3 py-2 border border-blue-900/30">
-              <span className="text-slate-500 flex items-center">
-                Precio efectivo BUY
-                <InfoTip text="Strike ajustado por el yield ganado. Es el precio real al que comprás la moneda contando el rendimiento." position="top" />
-              </span>
+              <span className="text-slate-500">Precio efectivo BUY</span>
               <span className="text-blue-300 font-bold">${buy.effectivePrice?.toLocaleString() ?? '—'}</span>
             </div>
           )}
           {sell && (
             <div className="flex justify-between text-xs bg-purple-950/30 rounded-lg px-3 py-2 border border-purple-900/30">
-              <span className="text-slate-500 flex items-center">
-                Precio efectivo SELL
-                <InfoTip text="Strike ajustado por el yield ganado. Es el precio real al que vendés la moneda contando el rendimiento." position="top" />
-              </span>
+              <span className="text-slate-500">Precio efectivo SELL</span>
               <span className="text-purple-300 font-bold">${sell.effectivePrice?.toLocaleString() ?? '—'}</span>
             </div>
           )}
         </div>
       </div>
 
-      {/* 3 — Compound calculator */}
       <div className="bg-slate-800/30 rounded-xl border border-slate-700/40 p-4">
-        <h4 className="text-xs font-semibold text-slate-300 uppercase tracking-widest mb-3 flex items-center">
-          🔄 Reinversión compuesta
-          <InfoTip text="Simulá cuánto crecería tu capital si reinvertís las ganancias en cada ciclo. Cuantos más ciclos, mayor el efecto del interés compuesto." position="left" />
+        <h4 className="text-xs font-semibold text-slate-300 uppercase tracking-widest mb-3">
+          Reinversión compuesta <InfoTip text="Cuánto crecería tu capital reinvirtiendo cada ciclo." position="left" />
         </h4>
         {buy && (
           <div className="mb-5">
-            <div className="text-xs text-blue-300 font-semibold mb-2 flex items-center gap-1">
-              ↓ BUY — {buy.apy.toFixed(1)}% APR
-            </div>
+            <div className="text-xs text-blue-300 font-semibold mb-2">↓ BUY — {buy.apy.toFixed(1)}% APR</div>
             <CompoundCalc product={buy} isBuy={true} />
           </div>
         )}
         {sell && (
           <div>
-            <div className="text-xs text-purple-300 font-semibold mb-2 flex items-center gap-1">
-              ↑ SELL — {sell.apy.toFixed(1)}% APR
-            </div>
+            <div className="text-xs text-purple-300 font-semibold mb-2">↑ SELL — {sell.apy.toFixed(1)}% APR</div>
             <CompoundCalc product={sell} isBuy={false} />
           </div>
         )}
       </div>
-
     </div>
   );
 }
 
-// One row per coin — shows best BUY and best SELL side by side
-export default function DualRow({ buy, sell, coin, isBestCoin }) {
-  const [expanded, setExpanded] = useState(false);
-
-  // Use whichever product is available for shared coin data
+// Main card component — shown in the card grid
+export default function DualCard({ buy, sell, coin, isBestCoin, isSelected, onSelect }) {
   const ref = buy || sell;
   if (!ref) return null;
 
@@ -388,114 +331,138 @@ export default function DualRow({ buy, sell, coin, isBestCoin }) {
   const coinColor = COIN_COLORS[coin] || '#94a3b8';
   const bestDailyYield = Math.max(buy?.dailyYield ?? 0, sell?.dailyYield ?? 0);
 
-  const rowSignals = [buy?.signal, sell?.signal].filter(Boolean);
-  const hasCaution = rowSignals.every(s => s === 'CAUTION');
+  const best = pickBest(buy, sell);
+  const signal = best?.product.signal ?? 'NEUTRAL';
+  const ui = SIGNAL_UI[signal] || SIGNAL_UI.NEUTRAL;
 
-  const rowBg = isBestCoin
-    ? 'bg-emerald-950/30 border-l-2 border-l-emerald-500'
-    : hasCaution
-    ? 'bg-red-950/20'
-    : '';
+  const hasBoth = !!(buy && sell);
+  const altProduct = best?.isBuy ? sell : buy;
 
   return (
-    <>
-      <tr
-        onClick={() => setExpanded(e => !e)}
-        className={`border-b border-slate-800 hover:bg-slate-800/40 transition-colors cursor-pointer select-none
-          ${rowBg} ${expanded ? 'bg-slate-800/30' : ''}`}
+    <div
+      className={`rounded-2xl overflow-hidden border transition-all duration-200
+        ${ui.border}
+        ${isSelected ? 'ring-2 ring-offset-2 ring-offset-slate-950 ring-blue-500' : ''}
+        ${isBestCoin ? 'ring-1 ring-emerald-500/50' : ''}
+      `}
+    >
+      {/* Signal header — colored banner */}
+      <div
+        className={`${ui.headerBg} px-4 py-3 cursor-pointer flex items-center justify-between`}
+        onClick={onSelect}
       >
-        {/* Moneda */}
-        <td className="px-4 py-3 whitespace-nowrap">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: coinColor }} />
-            <span className="text-slate-100 font-bold text-sm">{coin}</span>
-            {isBestCoin && (
-              <span className="text-xs text-emerald-400 bg-emerald-900/50 border border-emerald-700 px-1.5 py-0.5 rounded font-semibold">
-                TOP
-              </span>
-            )}
-            {isMock && (
-              <span className="text-xs text-yellow-600 bg-yellow-900/30 px-1.5 py-0.5 rounded">demo</span>
-            )}
-          </div>
-        </td>
-
-        {/* Precio Actual + cambio 24h */}
-        <td className="px-4 py-3 text-right whitespace-nowrap">
-          <span className="text-slate-100 font-semibold text-sm">{fmtPrice(currentPrice)}</span>
-          {change24h != null && (
-            <div className={`text-xs mt-0.5 font-medium ${change24h >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-              {fmtChange(change24h)}
-            </div>
-          )}
-        </td>
-
-        {/* Tendencia */}
-        <td className="px-4 py-3 text-center whitespace-nowrap">
-          <span className={`text-xs font-semibold px-2 py-1 rounded
-            ${trend === 'UP' ? 'bg-emerald-900/40 text-emerald-400'
-            : trend === 'DOWN' ? 'bg-red-900/40 text-red-400'
-            : 'bg-slate-800 text-slate-500'}`}>
-            {trend === 'UP' ? '▲ Alcista' : trend === 'DOWN' ? '▼ Bajista' : '— N/D'}
+        <div className="flex items-center gap-2">
+          <span className={`w-2.5 h-2.5 rounded-full ${ui.dot}`} />
+          <span className={`font-black text-sm uppercase tracking-wide ${ui.headerText}`}>
+            {ui.label}
           </span>
-        </td>
+          {isBestCoin && (
+            <span className="text-xs bg-emerald-400/20 text-emerald-200 px-2 py-0.5 rounded-full border border-emerald-400/30 font-semibold">
+              #1
+            </span>
+          )}
+        </div>
+        {isMock && (
+          <span className="text-xs text-yellow-600 bg-yellow-900/30 px-1.5 py-0.5 rounded">demo</span>
+        )}
+      </div>
 
-        {/* Card COMPRA */}
-        <td className="px-3 py-2 w-64">
-          <OpCard product={buy} isBuy={true} />
-        </td>
+      {/* Card body */}
+      <div className={`${ui.cardBg} px-4 pt-4 pb-3`}>
 
-        {/* Card VENTA */}
-        <td className="px-3 py-2 w-64">
-          <OpCard product={sell} isBuy={false} />
-        </td>
+        {/* Coin row */}
+        <div className="flex items-center gap-2 mb-4" onClick={onSelect} style={{ cursor: 'pointer' }}>
+          <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: coinColor }} />
+          <span className="text-white font-bold text-lg leading-none">{coin}</span>
+          <span className="text-slate-400 text-sm ml-1">{fmtPrice(currentPrice)}</span>
+          {change24h != null && (
+            <span className={`ml-auto text-xs font-bold ${change24h >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+              {fmtChange(change24h)}
+            </span>
+          )}
+        </div>
 
-        {/* Mejor Rend./Día + chevron */}
-        <td className="px-4 py-3 text-right whitespace-nowrap">
-          <div className="flex items-center justify-end gap-3">
-            <div>
-              <span className="text-emerald-300 font-bold text-sm">{fmtPercent(bestDailyYield)}</span>
-              <div className="text-xs text-slate-500 mt-0.5">por día</div>
+        {/* APR — main number */}
+        <div className="mb-4 cursor-pointer" onClick={onSelect}>
+          <div className={`text-4xl font-black leading-none ${ui.accentText}`}>
+            {fmtPercent(best?.product.apy ?? 0)}
+          </div>
+          <div className="text-xs text-slate-500 mt-1 font-medium">APR anual</div>
+        </div>
+
+        {/* Direction + strike box */}
+        <div
+          className={`rounded-xl px-3 py-2.5 mb-3 cursor-pointer
+            ${best?.isBuy
+              ? 'bg-blue-950/50 border border-blue-800/50'
+              : 'bg-purple-950/50 border border-purple-800/50'}`}
+          onClick={onSelect}
+        >
+          <div className={`text-sm font-bold leading-none mb-1 ${best?.isBuy ? 'text-blue-300' : 'text-purple-300'}`}>
+            {best?.isBuy ? '↓ Comprar' : '↑ Vender'} a {fmtPrice(best?.product.strikePrice)}
+          </div>
+          <div className="text-xs text-slate-400">
+            {best?.product.daysToExpiry} días · {fmtPercent(best?.product.dailyYield)}/día
+          </div>
+        </div>
+
+        {/* Stats row */}
+        <div className="flex items-center gap-3 mb-3" onClick={onSelect} style={{ cursor: 'pointer' }}>
+          <div className="flex-1 bg-slate-800/60 rounded-lg px-3 py-2 text-center">
+            <div className="text-xs text-slate-500 mb-0.5">Rend./día</div>
+            <div className="text-emerald-300 font-black text-base">{fmtPercent(bestDailyYield)}</div>
+          </div>
+          <div className="flex-1 bg-slate-800/60 rounded-lg px-3 py-2 text-center">
+            <div className="text-xs text-slate-500 mb-0.5">Tendencia</div>
+            <div className={`font-bold text-sm ${trend === 'UP' ? 'text-emerald-400' : trend === 'DOWN' ? 'text-red-400' : 'text-slate-400'}`}>
+              {trend === 'UP' ? '▲ Alcista' : trend === 'DOWN' ? '▼ Bajista' : '— N/D'}
             </div>
-            <span className={`text-slate-500 text-xs transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}>
-              ▼
+          </div>
+        </div>
+
+        {/* Alternative option hint */}
+        {hasBoth && altProduct && (
+          <div className="text-center mb-2">
+            <span className="text-xs text-slate-600">
+              También disponible:{' '}
+              <span className={altProduct === sell ? 'text-purple-400' : 'text-blue-400'}>
+                {altProduct === sell ? '↑ SELL' : '↓ BUY'} {fmtPercent(altProduct.apy)}
+              </span>
             </span>
           </div>
-        </td>
-      </tr>
+        )}
 
-      {expanded && (
-        <tr className="border-b border-slate-700">
-          <td colSpan={6} className="px-6 py-5 bg-slate-900/70">
-            <div className="space-y-4">
-              {/* Existing coin header — keep as-is */}
-              <div className="flex items-center gap-3 mb-1">
-                <span className="w-3 h-3 rounded-full" style={{ backgroundColor: coinColor }} />
-                <span className="text-slate-100 font-bold text-base">{coin}</span>
-                <span className="text-slate-400 text-sm">{fmtPrice(currentPrice)}</span>
-                {change24h != null && (
-                  <span className={`text-sm font-medium ${change24h >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                    {fmtChange(change24h)}
-                  </span>
-                )}
-                <span className={`text-xs font-semibold px-2 py-0.5 rounded ml-1
-                  ${trend === 'UP' ? 'bg-emerald-900/40 text-emerald-400' : trend === 'DOWN' ? 'bg-red-900/40 text-red-400' : 'bg-slate-800 text-slate-500'}`}>
-                  {trend === 'UP' ? '▲ Alcista' : trend === 'DOWN' ? '▼ Bajista' : '— N/D'}
-                </span>
-              </div>
+        {/* Expand/collapse */}
+        <button
+          onClick={onSelect}
+          className="w-full text-xs text-slate-500 hover:text-slate-300 transition-colors flex items-center justify-center gap-1 pt-1 border-t border-slate-800 mt-1"
+        >
+          {isSelected ? 'Ocultar análisis ▲' : 'Ver análisis completo ▼'}
+        </button>
+      </div>
 
-              {/* Existing two OpDetail cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <OpDetail product={buy} isBuy={true} currentPrice={currentPrice} />
-                <OpDetail product={sell} isBuy={false} currentPrice={currentPrice} />
-              </div>
+      {/* Expanded detail */}
+      {isSelected && (
+        <div className="bg-slate-900/70 border-t border-slate-700 px-4 py-5">
+          <div className="flex items-center gap-3 mb-4">
+            <span className="w-3 h-3 rounded-full" style={{ backgroundColor: coinColor }} />
+            <span className="text-slate-100 font-bold text-base">{coin}</span>
+            <span className="text-slate-400 text-sm">{fmtPrice(currentPrice)}</span>
+            {change24h != null && (
+              <span className={`text-sm font-medium ${change24h >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                {fmtChange(change24h)}
+              </span>
+            )}
+          </div>
 
-              {/* NEW: extra analysis sections */}
-              <DualExtraAnalysis buy={buy} sell={sell} currentPrice={currentPrice} coin={coin} />
-            </div>
-          </td>
-        </tr>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <OpDetail product={buy} isBuy={true} currentPrice={currentPrice} />
+            <OpDetail product={sell} isBuy={false} currentPrice={currentPrice} />
+          </div>
+
+          <DualExtraAnalysis buy={buy} sell={sell} currentPrice={currentPrice} coin={coin} />
+        </div>
       )}
-    </>
+    </div>
   );
 }
