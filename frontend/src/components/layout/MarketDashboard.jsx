@@ -42,13 +42,13 @@ export default function MarketDashboard() {
           {data.bestDual && (
             <Tooltip text={`Mejor producto de Dual Investment ahora. Dirección: ${data.bestDual.direction === 'BUY' ? 'Comprar (BUY)' : 'Vender (SELL)'}.`} position="bottom">
               <div className="flex flex-col justify-center px-4 py-3 rounded-xl border border-emerald-700/50 bg-emerald-950/40 cursor-default min-w-[190px]">
-                <div className="text-xs text-slate-400 uppercase tracking-wider mb-1 font-semibold">Mejor Dual Investment</div>
+                <div className="text-xs text-slate-400 uppercase tracking-wider mb-1 font-semibold">Mejor inversión fija</div>
                 <div className="flex items-baseline gap-2">
                   <span className="text-2xl font-black text-emerald-300">{data.bestDual.apy.toFixed(1)}%</span>
                   <span className="text-white font-bold text-base">{data.bestDual.coin}</span>
                 </div>
                 <div className="text-xs text-slate-400 mt-0.5">
-                  {data.bestDual.direction === 'BUY' ? '↓ Comprar' : '↑ Vender'} · APR anual
+                  {data.bestDual.direction === 'BUY' ? 'Invertís dólares' : 'Invertís cripto'} · rendimiento anual
                 </div>
               </div>
             </Tooltip>
@@ -58,7 +58,7 @@ export default function MarketDashboard() {
           {data.bestPool && (
             <Tooltip text="Pool de liquidez con mejor evaluación en Meteora según rentabilidad, fiabilidad y volumen." position="bottom">
               <div className="flex flex-col justify-center px-4 py-3 rounded-xl border border-violet-700/50 bg-violet-950/40 cursor-default min-w-[190px]">
-                <div className="text-xs text-slate-400 uppercase tracking-wider mb-1 font-semibold">Mejor Pool Meteora</div>
+                <div className="text-xs text-slate-400 uppercase tracking-wider mb-1 font-semibold">Mejor pool de liquidez</div>
                 <div className="flex items-center gap-2 mt-0.5">
                   <span className="text-white font-black text-base">{data.bestPool.pair}</span>
                   {data.bestPool.verdict && (

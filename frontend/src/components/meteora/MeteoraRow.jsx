@@ -146,7 +146,7 @@ export default function MeteoraCard({ pool, isFirst }) {
           <div className={`text-4xl font-black leading-none ${ui.apyColor}`}>
             {fmtPercent(apy)}
           </div>
-          <div className="text-xs text-slate-500 mt-1 font-medium">APY anual</div>
+          <div className="text-xs text-slate-500 mt-1 font-medium">rendimiento anual estimado</div>
         </div>
 
         {/* Stats grid */}
@@ -155,14 +155,14 @@ export default function MeteoraCard({ pool, isFirst }) {
             className="bg-slate-800/60 rounded-xl px-3 py-2.5 cursor-pointer"
             onClick={() => setExpanded(e => !e)}
           >
-            <div className="text-xs text-slate-500 mb-0.5">Liquidez (TVL)</div>
+            <div className="text-xs text-slate-500 mb-0.5">Fondos en el pool</div>
             <div className="text-white font-bold">{fmtCompact(tvl)}</div>
           </div>
           <div
             className="bg-slate-800/60 rounded-xl px-3 py-2.5 cursor-pointer"
             onClick={() => setExpanded(e => !e)}
           >
-            <div className="text-xs text-slate-500 mb-0.5">Por día</div>
+            <div className="text-xs text-slate-500 mb-0.5">Ganancia diaria</div>
             <div className="text-emerald-300 font-black text-base">{fmtPercent(dailyYield)}</div>
           </div>
           {fees24h > 0 && (
@@ -170,7 +170,7 @@ export default function MeteoraCard({ pool, isFirst }) {
               className="bg-slate-800/60 rounded-xl px-3 py-2.5 cursor-pointer"
               onClick={() => setExpanded(e => !e)}
             >
-              <div className="text-xs text-slate-500 mb-0.5">Fees 24h</div>
+              <div className="text-xs text-slate-500 mb-0.5">Comisiones generadas (24h)</div>
               <div className="text-slate-200 font-semibold">{fmtCompact(fees24h)}</div>
             </div>
           )}

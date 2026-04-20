@@ -62,16 +62,16 @@ export default function MeteoraTable() {
       <div className="flex flex-wrap gap-4 px-6 py-3 bg-slate-900/50 border-b border-slate-800 text-sm items-center">
         <StatChip label="Total pools" value={pools.length} />
         <StatChip label="Recomendadas" value={excellentCount} color="text-emerald-400" />
-        <StatChip label="Mejor APY" value={`${bestApy.toFixed(1)}%`} color="text-emerald-300" />
-        <StatChip label="TVL total" value={fmtCompact(totalTvl)} />
+        <StatChip label="Mejor rendimiento" value={`${bestApy.toFixed(1)}%`} color="text-emerald-300" />
+        <StatChip label="Fondos totales" value={fmtCompact(totalTvl)} />
 
         {/* Sort controls */}
         <div className="ml-auto flex items-center gap-2 text-xs">
           <span className="text-slate-500">Ordenar:</span>
-          <SortBtn label="APY" active={sort.field === 'apy'} onClick={() => setSort({ field: 'apy', dir: 'desc' })} />
+          <SortBtn label="Rendimiento" active={sort.field === 'apy'} onClick={() => setSort({ field: 'apy', dir: 'desc' })} />
           <SortBtn label="Calificación" active={sort.field === 'verdict'} onClick={() => setSort({ field: 'verdict', dir: 'asc' })} />
-          <SortBtn label="TVL" active={sort.field === 'tvl'} onClick={() => setSort({ field: 'tvl', dir: 'desc' })} />
-          <SortBtn label="Rend./Día" active={sort.field === 'dailyYield'} onClick={() => setSort({ field: 'dailyYield', dir: 'desc' })} />
+          <SortBtn label="Fondos" active={sort.field === 'tvl'} onClick={() => setSort({ field: 'tvl', dir: 'desc' })} />
+          <SortBtn label="Ganancia/día" active={sort.field === 'dailyYield'} onClick={() => setSort({ field: 'dailyYield', dir: 'desc' })} />
         </div>
       </div>
 

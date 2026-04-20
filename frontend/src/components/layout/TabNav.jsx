@@ -1,6 +1,6 @@
 const TABS = [
-  { id: 'dual', label: 'Dual Investment', sub: 'Binance' },
-  { id: 'meteora', label: 'Liquidity Pools', sub: 'Meteora' },
+  { id: 'dual', label: 'Inversión Fija', sub: 'Binance Dual Investment' },
+  { id: 'meteora', label: 'Pools de Liquidez', sub: 'Meteora · Solana' },
 ];
 
 export default function TabNav({ active, onChange }) {

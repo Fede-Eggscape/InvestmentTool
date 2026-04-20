@@ -96,14 +96,14 @@ export default function DualTable() {
       {/* Stats bar */}
       <div className="flex flex-wrap gap-4 px-6 py-3 bg-slate-900/50 border-b border-slate-800 text-sm items-center">
         <StatChip label="Monedas" value={grouped.length} />
-        <StatChip label="Fuerte Compra" value={strongBuy} color="text-emerald-400" />
-        <StatChip label="Mejor APR" value={`${bestApy.toFixed(2)}%`} color="text-emerald-300" />
+        <StatChip label="Muy recomendadas" value={strongBuy} color="text-emerald-400" />
+        <StatChip label="Mejor rendimiento" value={`${bestApy.toFixed(2)}%`} color="text-emerald-300" />
 
         {/* Sort controls */}
         <div className="ml-auto flex items-center gap-2 text-xs">
           <span className="text-slate-500">Ordenar:</span>
-          <SortBtn label="Rend./Día" active={sort.field === 'bestDailyYield'} onClick={() => setSort({ field: 'bestDailyYield', dir: 'desc' })} />
-          <SortBtn label="Señal" active={sort.field === 'bestSignal'} onClick={() => setSort({ field: 'bestSignal', dir: 'asc' })} />
+          <SortBtn label="Ganancia/día" active={sort.field === 'bestDailyYield'} onClick={() => setSort({ field: 'bestDailyYield', dir: 'desc' })} />
+          <SortBtn label="Recomendación" active={sort.field === 'bestSignal'} onClick={() => setSort({ field: 'bestSignal', dir: 'asc' })} />
           <SortBtn label="Nombre" active={sort.field === 'coin'} onClick={() => setSort({ field: 'coin', dir: 'asc' })} />
         </div>
 
