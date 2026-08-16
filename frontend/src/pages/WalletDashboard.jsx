@@ -109,28 +109,28 @@ function PoolNameEditor({ poolId, name, onSave }) {
 }
 
 /* ─── Month row ─── */
+const MONTH_GRID = 'grid grid-cols-[minmax(0,1fr)_80px_75px_75px_75px_16px] items-center gap-4';
+
 function MonthRow({ month, onClick }) {
   const value = month.isCurrent ? month.currentValue : month.finalValue;
   return (
     <button
       onClick={onClick}
-      className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-slate-800/60 transition-colors text-left group"
+      className={`w-full ${MONTH_GRID} px-5 py-3.5 hover:bg-slate-800/60 transition-colors text-left group text-sm`}
     >
-      <div className="flex items-center gap-3">
-        <div className="text-slate-300 text-sm font-medium">{month.label}</div>
+      <div className="flex items-center gap-2 min-w-0">
+        <span className="text-slate-300 font-medium truncate">{month.label}</span>
         {month.isCurrent && (
-          <span className="text-xs px-1.5 py-0.5 rounded bg-emerald-900/50 text-emerald-400 border border-emerald-800/50">Current</span>
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-900/50 text-emerald-400 border border-emerald-800/50 flex-shrink-0">Current</span>
         )}
       </div>
-      <div className="flex items-center gap-6 text-sm">
-        {month.withdrawals > 0 && (
-          <span className="text-amber-400 text-xs">Withdrawal: {fmtUSD(month.withdrawals)}</span>
-        )}
-        <span className="text-emerald-400 font-medium">{fmtPct(month.generatedPct)}</span>
-        <span className="text-emerald-300 font-medium">{fmtUSD(month.generatedUsd)}</span>
-        <span className="text-slate-400">{fmtUSD(value)}</span>
-        <span className="text-slate-600 group-hover:text-slate-400 transition-colors"><ChevronRight /></span>
-      </div>
+      <span className="text-amber-400 text-xs text-right tabular-nums">
+        {month.withdrawals > 0 ? fmtUSD(month.withdrawals) : <span className="text-slate-700">—</span>}
+      </span>
+      <span className="text-emerald-400 font-medium text-right tabular-nums">{fmtPct(month.generatedPct)}</span>
+      <span className="text-emerald-300 font-medium text-right tabular-nums">{fmtUSD(month.generatedUsd)}</span>
+      <span className="text-slate-400 text-right tabular-nums">{fmtUSD(value)}</span>
+      <span className="text-slate-600 group-hover:text-slate-400 transition-colors flex justify-end"><ChevronRight /></span>
     </button>
   );
 }
@@ -262,11 +262,16 @@ function PoolDetailView({ pool, onBack, onPoolNameSave }) {
 
       {/* Monthly list */}
       <div className="mt-6 bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-        <div className="px-5 py-3.5 border-b border-slate-800 flex items-center justify-between">
+        <div className="px-5 py-3.5 border-b border-slate-800">
           <h3 className="text-slate-300 font-medium text-sm">Monthly History</h3>
-          <div className="text-slate-500 text-xs hidden sm:flex items-center gap-6 pr-1">
-            <span>Withdrawal</span><span>Return %</span><span>Return $</span><span>Value</span>
-          </div>
+        </div>
+        <div className={`${MONTH_GRID} px-5 py-2 border-b border-slate-800/60 text-slate-500 text-[10px] uppercase tracking-wider`}>
+          <span>Month</span>
+          <span className="text-right">Withdrawal</span>
+          <span className="text-right">Return %</span>
+          <span className="text-right">Return $</span>
+          <span className="text-right">Value</span>
+          <span></span>
         </div>
         <div className="divide-y divide-slate-800/60">
           {sortedMonths.map((m) => (
