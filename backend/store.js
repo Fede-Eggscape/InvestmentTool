@@ -2,48 +2,459 @@ const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 
 const SALT = 10;
+const TODAY = '2026-08-16';
 
-function makeDays(year, month, totalReturnUsd, poolSize, pairs) {
-  const numDays = new Date(year, month, 0).getDate();
+/* ─── Date helpers ─────────────────────────── */
+function addDays(dateStr, days) {
+  const d = new Date(dateStr + 'T12:00:00Z');
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().split('T')[0];
+}
+function daysBetween(start, end) {
+  const s = new Date(start + 'T12:00:00Z');
+  const e = new Date(end + 'T12:00:00Z');
+  return Math.round((e - s) / 86400000) + 1;
+}
+const M = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function periodLabel(start, end) {
+  const [sy, sm, sd] = start.split('-').map(Number);
+  const [ey, em, ed] = end.split('-').map(Number);
+  const a = `${M[sm-1]} ${sd}`;
+  const b = `${M[em-1]} ${ed}`;
+  if (sy === ey) return `${a} – ${b}, ${sy}`;
+  return `${a}, ${sy} – ${b}, ${ey}`;
+}
+function currentLabel(start) {
+  const [y, m, d] = start.split('-').map(Number);
+  return `${M[m-1]} ${d}, ${y} – Present`;
+}
+
+/* ─── Deterministic daily generator ───────────
+ * Distributes a target USD return across N days with occasional
+ * negative days for realism. negativeBias = fraction of negative days.
+ */
+function makeDays(startDate, endDate, targetUsd, poolValue, pairs, negativeBias = 0.15) {
+  const totalDays = Math.max(1, daysBetween(startDate, endDate));
   const days = [];
-  const base = totalReturnUsd / numDays;
-  for (let d = 1; d <= numDays; d++) {
-    const factor = 0.5 + ((d * 17 + 3) % 15) / 10;
-    const dayTotal = base * factor;
-    const dayPairs = pairs.map((p, i) => {
-      const share = i === 0 ? 0.62 : 0.38;
-      const usd = Math.round(dayTotal * share);
-      return { pair: p, pct: parseFloat((usd / poolSize * 100).toFixed(3)), usd };
+  const target = targetUsd || 0;
+
+  const negCount = Math.floor(totalDays * negativeBias);
+  const posCount = Math.max(1, totalDays - negCount);
+  const negAvgLoss = Math.abs(target / totalDays) * 0.4;
+  const posAvgGain = (target + negCount * negAvgLoss) / posCount;
+
+  for (let i = 0; i < totalDays; i++) {
+    const dateStr = addDays(startDate, i);
+    const factor  = 0.55 + ((i * 13 + 7) % 9) / 10;
+    const isNeg   = negativeBias > 0 && negCount > 0 &&
+                    i > 0 && (i % Math.max(2, Math.round(1 / negativeBias))) === 0;
+    const dayUsd  = isNeg ? -negAvgLoss * factor : posAvgGain * factor;
+
+    const dayPairs = pairs.map((pair, j) => {
+      let share;
+      if (pairs.length === 1)      share = 1;
+      else if (pairs.length === 2) share = j === 0 ? 0.6 : 0.4;
+      else                          share = [0.5, 0.3, 0.2][j] || 0;
+      let pairUsd = Math.round(dayUsd * share);
+      if (!isNeg && pairs.length > 1 && j === pairs.length - 1 && (i * 11 + 3) % 5 === 0) {
+        pairUsd = -Math.abs(pairUsd);
+      }
+      const pct = poolValue > 0 ? parseFloat((pairUsd / poolValue * 100).toFixed(3)) : 0;
+      return { pair, pct, usd: pairUsd };
     });
-    days.push({
-      date: `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`,
-      pairs: dayPairs,
-    });
+    days.push({ date: dateStr, pairs: dayPairs });
   }
   return days;
 }
 
-function makeDaysUntil(year, month, lastDay, totalReturnUsd, poolSize, pairs) {
-  const days = [];
-  const base = totalReturnUsd / lastDay;
-  for (let d = 1; d <= lastDay; d++) {
-    const factor = 0.5 + ((d * 17 + 3) % 15) / 10;
-    const dayTotal = base * factor;
-    const dayPairs = pairs.map((p, i) => {
-      const share = i === 0 ? 0.62 : 0.38;
-      const usd = Math.round(dayTotal * share);
-      return { pair: p, pct: parseFloat((usd / poolSize * 100).toFixed(3)), usd };
-    });
-    days.push({
-      date: `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`,
-      pairs: dayPairs,
+/* ─── Month/cycle builder ──────────────────── */
+function buildMonth({
+  startDate, endDate, label,
+  initialValue, finalValue, currentValue,
+  generatedPct, withdrawals = 0, isCurrent = false,
+  pairs, negativeBias,
+}) {
+  const gen = isCurrent
+    ? (currentValue - initialValue)
+    : (finalValue   - initialValue);
+  const pct = generatedPct != null
+    ? generatedPct
+    : parseFloat((gen / initialValue * 100).toFixed(2));
+  const untilDate = isCurrent ? TODAY : endDate;
+  return {
+    monthKey: startDate,
+    label,
+    initialValue: round2(initialValue),
+    finalValue:   isCurrent ? null : round2(finalValue),
+    currentValue: isCurrent ? round2(currentValue) : null,
+    generatedUsd: round2(gen),
+    generatedPct: pct,
+    withdrawals:  round2(withdrawals),
+    isCurrent,
+    days: makeDays(startDate, untilDate, gen, initialValue, pairs, negativeBias ?? 0.15),
+  };
+}
+function round2(n) { return Math.round(n * 100) / 100; }
+
+/* ─── Pool builder ─────────────────────────── */
+const PAIRS = {
+  sol_eth:     ['SOL/USDC', 'ETH/USDC'],
+  sol_eth_btc: ['SOL/USDC', 'ETH/USDC', 'BTC/USDT'],
+  btc_eth:     ['BTC/USDT', 'ETH/USDC'],
+  sol_btc:     ['SOL/USDC', 'BTC/USDT'],
+  eth_btc:     ['ETH/USDC', 'BTC/USDT'],
+};
+
+function makePools() {
+  const pools = [];
+
+  /* Pool 1 — Aug 4 to Sep 3, 2025 (CLOSED) — all withdrawn */
+  {
+    const init = 20000, pct = 13.2;
+    const final = init * (1 + pct/100);
+    pools.push({
+      id: 'pool-1', name: 'Liquidity Pool 1', status: 'closed',
+      openedAt: '2025-08-04', closedAt: '2025-09-03',
+      months: [buildMonth({
+        startDate: '2025-08-04', endDate: '2025-09-03',
+        label: 'Aug 4 – Sep 3, 2025',
+        initialValue: init, finalValue: final,
+        generatedPct: pct, withdrawals: final,
+        pairs: PAIRS.sol_eth_btc, negativeBias: 0.15,
+      })],
     });
   }
-  return days;
+
+  /* Pool 2 — Sep 6 to Nov 5, 2025 (CLOSED) — 2 cycles, all withdrawn on close */
+  {
+    const i1 = 20000, p1 = 15.3, f1 = i1 * 1.153;      // 23,060
+    const i2 = f1,    p2 = 19.7, f2 = i2 * 1.197;      // 27,602.82
+    pools.push({
+      id: 'pool-2', name: 'Liquidity Pool 2', status: 'closed',
+      openedAt: '2025-09-06', closedAt: '2025-11-05',
+      months: [
+        buildMonth({
+          startDate: '2025-09-06', endDate: '2025-10-05',
+          label: 'Sep 6 – Oct 5, 2025',
+          initialValue: i1, finalValue: f1, generatedPct: p1,
+          pairs: PAIRS.sol_eth, negativeBias: 0.15,
+        }),
+        buildMonth({
+          startDate: '2025-10-06', endDate: '2025-11-05',
+          label: 'Oct 6 – Nov 5, 2025',
+          initialValue: i2, finalValue: f2, generatedPct: p2,
+          withdrawals: f2,
+          pairs: PAIRS.sol_eth, negativeBias: 0.15,
+        }),
+      ],
+    });
+  }
+
+  /* Pool 3 — Nov 7, 2025 to Feb 5, 2026 (CLOSED) */
+  {
+    const i1 = 20000, p1 = 22,   f1 = i1 * 1.22;       // 24,400
+    const i2 = f1,    p2 = 18.5, f2 = i2 * 1.185;      // 28,914
+    const w2 = f2 - 20000;                             // 8,914 → reset to 20K
+    const i3 = 20000, p3 = 25.8, f3 = i3 * 1.258;      // 25,160
+    pools.push({
+      id: 'pool-3', name: 'Liquidity Pool 3', status: 'closed',
+      openedAt: '2025-11-07', closedAt: '2026-02-05',
+      months: [
+        buildMonth({
+          startDate: '2025-11-07', endDate: '2025-12-06',
+          label: 'Nov 7 – Dec 6, 2025',
+          initialValue: i1, finalValue: f1, generatedPct: p1,
+          pairs: PAIRS.btc_eth, negativeBias: 0.15,
+        }),
+        buildMonth({
+          startDate: '2025-12-07', endDate: '2026-01-06',
+          label: 'Dec 7, 2025 – Jan 6, 2026',
+          initialValue: i2, finalValue: f2, generatedPct: p2,
+          withdrawals: w2,
+          pairs: PAIRS.btc_eth, negativeBias: 0.20,
+        }),
+        buildMonth({
+          startDate: '2026-01-07', endDate: '2026-02-05',
+          label: 'Jan 7 – Feb 5, 2026',
+          initialValue: i3, finalValue: f3, generatedPct: p3,
+          withdrawals: f3,
+          pairs: PAIRS.btc_eth, negativeBias: 0.15,
+        }),
+      ],
+    });
+  }
+
+  /* Pool 4 — Nov 7, 2025 to Feb 5, 2026 (CLOSED) */
+  {
+    const i1 = 20000, p1 = 19.3, f1 = i1 * 1.193;      // 23,860
+    const i2 = f1,    p2 = 16.2, f2 = i2 * 1.162;      // 27,725.32
+    const w2 = f2 - 20000;
+    const i3 = 20000, p3 = 23.1, f3 = i3 * 1.231;      // 24,620
+    pools.push({
+      id: 'pool-4', name: 'Liquidity Pool 4', status: 'closed',
+      openedAt: '2025-11-07', closedAt: '2026-02-05',
+      months: [
+        buildMonth({
+          startDate: '2025-11-07', endDate: '2025-12-06',
+          label: 'Nov 7 – Dec 6, 2025',
+          initialValue: i1, finalValue: f1, generatedPct: p1,
+          pairs: PAIRS.sol_eth_btc, negativeBias: 0.20,
+        }),
+        buildMonth({
+          startDate: '2025-12-07', endDate: '2026-01-06',
+          label: 'Dec 7, 2025 – Jan 6, 2026',
+          initialValue: i2, finalValue: f2, generatedPct: p2,
+          withdrawals: w2,
+          pairs: PAIRS.sol_eth_btc, negativeBias: 0.25,
+        }),
+        buildMonth({
+          startDate: '2026-01-07', endDate: '2026-02-05',
+          label: 'Jan 7 – Feb 5, 2026',
+          initialValue: i3, finalValue: f3, generatedPct: p3,
+          withdrawals: f3,
+          pairs: PAIRS.sol_eth_btc, negativeBias: 0.20,
+        }),
+      ],
+    });
+  }
+
+  /* Pool 5 — Feb 19, 2026 to present (OPEN) — resets to 20K each cycle */
+  {
+    const cycles = [
+      { start: '2026-02-19', end: '2026-03-20', pct: 29.1, negBias: 0.15 },
+      { start: '2026-03-21', end: '2026-04-19', pct: 31.2, negBias: 0.15 },
+      { start: '2026-04-20', end: '2026-05-19', pct: 28.7, negBias: 0.15 },
+      { start: '2026-05-20', end: '2026-06-18', pct: 32.5, negBias: 0.15 },
+      { start: '2026-06-19', end: '2026-07-18', pct: 23.8, negBias: 0.30 },
+      { start: '2026-07-19', end: null,          pct: 26.7, negBias: 0.20, current: true },
+    ];
+    pools.push({
+      id: 'pool-5', name: 'Liquidity Pool 5', status: 'open',
+      openedAt: '2026-02-19', closedAt: null,
+      months: cycles.map(c => {
+        const init = 20000, gain = init * c.pct / 100, final = init + gain;
+        return buildMonth({
+          startDate: c.start, endDate: c.end,
+          label: c.current ? currentLabel(c.start) : periodLabel(c.start, c.end),
+          initialValue: init,
+          finalValue: c.current ? null : final,
+          currentValue: c.current ? final : null,
+          generatedPct: c.pct,
+          withdrawals: c.current ? 0 : gain,
+          isCurrent: !!c.current,
+          pairs: PAIRS.sol_eth, negativeBias: c.negBias,
+        });
+      }),
+    });
+  }
+
+  /* Pools 6, 7, 8 — Feb 23, 2026 to present (OPEN) — 3 similar pools, ±1.5% variation */
+  {
+    const basePcts = [25, 28.4, 32.1, 30.4, 18, 20];
+    const cycleDates = [
+      { start: '2026-02-23', end: '2026-03-24' },
+      { start: '2026-03-25', end: '2026-04-23' },
+      { start: '2026-04-24', end: '2026-05-23' },
+      { start: '2026-05-24', end: '2026-06-22' },
+      { start: '2026-06-23', end: '2026-07-22' },
+      { start: '2026-07-23', end: null },
+    ];
+    const variants = [
+      { id: 'pool-6', name: 'Liquidity Pool 6', offset: -1.5, pairs: PAIRS.btc_eth },
+      { id: 'pool-7', name: 'Liquidity Pool 7', offset:  0,   pairs: PAIRS.sol_btc },
+      { id: 'pool-8', name: 'Liquidity Pool 8', offset: +0.6, pairs: PAIRS.sol_eth_btc },
+    ];
+    variants.forEach(v => {
+      pools.push({
+        id: v.id, name: v.name, status: 'open',
+        openedAt: '2026-02-23', closedAt: null,
+        months: cycleDates.map((cd, i) => {
+          const pct = parseFloat((basePcts[i] + v.offset).toFixed(1));
+          const init = 20000, gain = init * pct / 100, final = init + gain;
+          const isCurrent = cd.end === null;
+          return buildMonth({
+            startDate: cd.start, endDate: cd.end,
+            label: isCurrent ? currentLabel(cd.start) : periodLabel(cd.start, cd.end),
+            initialValue: init,
+            finalValue: isCurrent ? null : final,
+            currentValue: isCurrent ? final : null,
+            generatedPct: pct,
+            withdrawals: isCurrent ? 0 : gain,
+            isCurrent,
+            pairs: v.pairs,
+            negativeBias: pct < 25 ? 0.30 : 0.15,
+          });
+        }),
+      });
+    });
+  }
+
+  /* Pool 9 — Mar 5, 2026 to present (OPEN) */
+  {
+    const cycles = [
+      { start: '2026-03-05', end: '2026-04-03', pct: 27.3, negBias: 0.15 },
+      { start: '2026-04-04', end: '2026-05-03', pct: 31,   negBias: 0.15 },
+      { start: '2026-05-04', end: '2026-06-02', pct: 27.8, negBias: 0.15 },
+      { start: '2026-06-03', end: '2026-07-02', pct: 24.1, negBias: 0.30 },
+      { start: '2026-07-03', end: null,          pct: 14.3, negBias: 0.40, current: true },
+    ];
+    pools.push({
+      id: 'pool-9', name: 'Liquidity Pool 9', status: 'open',
+      openedAt: '2026-03-05', closedAt: null,
+      months: cycles.map(c => {
+        const init = 20000, gain = init * c.pct / 100, final = init + gain;
+        return buildMonth({
+          startDate: c.start, endDate: c.end,
+          label: c.current ? currentLabel(c.start) : periodLabel(c.start, c.end),
+          initialValue: init,
+          finalValue: c.current ? null : final,
+          currentValue: c.current ? final : null,
+          generatedPct: c.pct,
+          withdrawals: c.current ? 0 : gain,
+          isCurrent: !!c.current,
+          pairs: PAIRS.btc_eth, negativeBias: c.negBias,
+        });
+      }),
+    });
+  }
+
+  /* Pool 10 — Apr 6 to Jun 6, 2026 (CLOSED, funds moved to pools 12/13/14) */
+  const p10_p2_final = round2(20000 * 1.289 - 1500) * 1.26; // 30,592.80
+  {
+    const i1 = 20000, p1 = 28.9, f1 = i1 * 1.289;    // 25,780
+    const w1 = 1500;
+    const i2 = f1 - w1, p2 = 26, f2 = i2 * 1.26;     // 30,592.80
+    pools.push({
+      id: 'pool-10', name: 'Liquidity Pool 10', status: 'closed',
+      openedAt: '2026-04-06', closedAt: '2026-06-06',
+      months: [
+        buildMonth({
+          startDate: '2026-04-06', endDate: '2026-05-05',
+          label: 'Apr 6 – May 5, 2026',
+          initialValue: i1, finalValue: f1, generatedPct: p1,
+          withdrawals: w1,
+          pairs: PAIRS.sol_eth, negativeBias: 0.15,
+        }),
+        buildMonth({
+          startDate: '2026-05-06', endDate: '2026-06-05',
+          label: 'May 6 – Jun 5, 2026',
+          initialValue: i2, finalValue: f2, generatedPct: p2,
+          withdrawals: f2,
+          pairs: PAIRS.sol_eth, negativeBias: 0.15,
+        }),
+      ],
+    });
+  }
+
+  /* Pool 11 — Apr 6 to Jun 6, 2026 (CLOSED, funds moved to pools 12/13/14) */
+  const p11_p2_final = round2(20000 * 1.278 - 1500) * 1.263; // 30,387.78
+  {
+    const i1 = 20000, p1 = 27.8, f1 = i1 * 1.278;     // 25,560
+    const w1 = 1500;
+    const i2 = f1 - w1, p2 = 26.3, f2 = i2 * 1.263;   // 30,387.78
+    pools.push({
+      id: 'pool-11', name: 'Liquidity Pool 11', status: 'closed',
+      openedAt: '2026-04-06', closedAt: '2026-06-06',
+      months: [
+        buildMonth({
+          startDate: '2026-04-06', endDate: '2026-05-05',
+          label: 'Apr 6 – May 5, 2026',
+          initialValue: i1, finalValue: f1, generatedPct: p1,
+          withdrawals: w1,
+          pairs: PAIRS.sol_btc, negativeBias: 0.15,
+        }),
+        buildMonth({
+          startDate: '2026-05-06', endDate: '2026-06-05',
+          label: 'May 6 – Jun 5, 2026',
+          initialValue: i2, finalValue: f2, generatedPct: p2,
+          withdrawals: f2,
+          pairs: PAIRS.sol_btc, negativeBias: 0.15,
+        }),
+      ],
+    });
+  }
+
+  /* Pools 12, 13, 14 — Jun 6, 2026, opened from split of Pool 10 + Pool 11 remainders */
+  /* Pool 10 remainder after $1.5K = 29,092.80, Pool 11 remainder = 28,887.78, total 57,980.58 */
+  /* Split 3 ways: 19,326.86 each */
+  const splitAmount = round2((round2(20000 * 1.289 - 1500) * 1.26 - 1500 +
+                              round2(20000 * 1.278 - 1500) * 1.263 - 1500) / 3);
+
+  /* Pool 12 — continues after split, reset to $20K, still open */
+  {
+    const i1 = splitAmount, p1 = 14, f1 = i1 * 1.14;
+    const w1 = f1 - 20000;
+    const i2 = 20000, p2 = 16.5, cv2 = i2 * 1.165;
+    pools.push({
+      id: 'pool-12', name: 'Liquidity Pool 12', status: 'open',
+      openedAt: '2026-06-06', closedAt: null,
+      months: [
+        buildMonth({
+          startDate: '2026-06-06', endDate: '2026-07-05',
+          label: 'Jun 6 – Jul 5, 2026',
+          initialValue: i1, finalValue: f1, generatedPct: p1,
+          withdrawals: w1,
+          pairs: PAIRS.sol_eth, negativeBias: 0.35,
+        }),
+        buildMonth({
+          startDate: '2026-07-06', endDate: null,
+          label: currentLabel('2026-07-06'),
+          initialValue: i2, currentValue: cv2, generatedPct: p2,
+          isCurrent: true,
+          pairs: PAIRS.sol_eth, negativeBias: 0.25,
+        }),
+      ],
+    });
+  }
+
+  /* Pool 13 — from split, closed after Jun-Jul cycle */
+  {
+    const init = splitAmount, pct = 18.3, final = init * 1.183;
+    pools.push({
+      id: 'pool-13', name: 'Liquidity Pool 13', status: 'closed',
+      openedAt: '2026-06-06', closedAt: '2026-07-06',
+      months: [buildMonth({
+        startDate: '2026-06-06', endDate: '2026-07-05',
+        label: 'Jun 6 – Jul 5, 2026',
+        initialValue: init, finalValue: final, generatedPct: pct,
+        withdrawals: final,
+        pairs: PAIRS.eth_btc, negativeBias: 0.30,
+      })],
+    });
+  }
+
+  /* Pool 14 — continues after split, reset to $20K, still open */
+  {
+    const i1 = splitAmount, p1 = 23.2, f1 = i1 * 1.232;
+    const w1 = f1 - 20000;
+    const i2 = 20000, p2 = 19.4, cv2 = i2 * 1.194;
+    pools.push({
+      id: 'pool-14', name: 'Liquidity Pool 14', status: 'open',
+      openedAt: '2026-06-06', closedAt: null,
+      months: [
+        buildMonth({
+          startDate: '2026-06-06', endDate: '2026-07-05',
+          label: 'Jun 6 – Jul 5, 2026',
+          initialValue: i1, finalValue: f1, generatedPct: p1,
+          withdrawals: w1,
+          pairs: PAIRS.sol_btc, negativeBias: 0.15,
+        }),
+        buildMonth({
+          startDate: '2026-07-06', endDate: null,
+          label: currentLabel('2026-07-06'),
+          initialValue: i2, currentValue: cv2, generatedPct: p2,
+          isCurrent: true,
+          pairs: PAIRS.sol_btc, negativeBias: 0.25,
+        }),
+      ],
+    });
+  }
+
+  return pools;
 }
 
-const p1 = ['SOL/USDC', 'WBTC/USDC'];
-const p2 = ['ETH/USDC', 'SOL/USDC'];
+/* ─── Store ─────────────────────────── */
+const WALLET_ADDR = '5VXPSSnSxa2bP9HPdHXt9pCXVyfwXwRN8HRE2pyoN88M';
 
 const store = {
   users: [
@@ -56,62 +467,28 @@ const store = {
       createdAt: '2026-01-01T00:00:00.000Z',
     },
     {
-      id: 'test1',
-      username: 'test1',
-      passwordHash: bcrypt.hashSync('asasdd', SALT),
+      id: 'wallet-solana-1',
+      username: WALLET_ADDR,
+      passwordHash: bcrypt.hashSync('Cartoon12?', SALT),
       isAdmin: false,
       isPreloaded: true,
-      createdAt: '2026-01-01T00:00:00.000Z',
+      createdAt: '2025-08-01T00:00:00.000Z',
     },
   ],
-
   wallets: {
-    test1: {
+    [WALLET_ADDR]: {
       assets: [
-        { name: 'SOL',  quantity: 200,  valueUSD: 37000 },
-        { name: 'USDC', quantity: 12500, valueUSD: 12500 },
-        { name: 'WBTC', quantity: 0.12, valueUSD: 8160  },
+        { name: 'SOL',  quantity: 80,    valueUSD: 14800 },
+        { name: 'USDC', quantity: 32000, valueUSD: 32000 },
       ],
-      pools: [
-        {
-          id: 'pool-1',
-          name: 'Liquidity Pool 1',
-          status: 'open',
-          openedAt: '2026-01-01',
-          closedAt: null,
-          months: [
-            { monthKey: '2026-01', label: 'January 2026',  initialValue: 30000, finalValue: 31800, currentValue: null, generatedUsd: 1800, generatedPct: 6.00, withdrawals: 0,    isCurrent: false, days: makeDays(2026, 1, 1800, 30000, p1) },
-            { monthKey: '2026-02', label: 'February 2026', initialValue: 31800, finalValue: 33700, currentValue: null, generatedUsd: 1900, generatedPct: 5.97, withdrawals: 2000, isCurrent: false, days: makeDays(2026, 2, 1900, 31800, p1) },
-            { monthKey: '2026-03', label: 'March 2026',    initialValue: 31700, finalValue: 33800, currentValue: null, generatedUsd: 2100, generatedPct: 6.62, withdrawals: 0,    isCurrent: false, days: makeDays(2026, 3, 2100, 31700, p1) },
-            { monthKey: '2026-04', label: 'April 2026',    initialValue: 33800, finalValue: 36100, currentValue: null, generatedUsd: 2300, generatedPct: 6.80, withdrawals: 0,    isCurrent: false, days: makeDays(2026, 4, 2300, 33800, p1) },
-            { monthKey: '2026-05', label: 'May 2026',      initialValue: 36100, finalValue: 38500, currentValue: null, generatedUsd: 2400, generatedPct: 6.65, withdrawals: 0,    isCurrent: false, days: makeDays(2026, 5, 2400, 36100, p1) },
-            { monthKey: '2026-06', label: 'June 2026',     initialValue: 38500, finalValue: 40800, currentValue: null, generatedUsd: 2300, generatedPct: 5.97, withdrawals: 1500, isCurrent: false, days: makeDays(2026, 6, 2300, 38500, p1) },
-            { monthKey: '2026-07', label: 'July 2026',     initialValue: 39300, finalValue: 40000, currentValue: null, generatedUsd: 700,  generatedPct: 1.78, withdrawals: 0,    isCurrent: false, days: makeDays(2026, 7, 700,  39300, p1) },
-            { monthKey: '2026-08', label: 'August 2026',   initialValue: 40000, finalValue: null,  currentValue: 44000, generatedUsd: 4000, generatedPct: 10.00, withdrawals: 0,  isCurrent: true,  days: makeDaysUntil(2026, 8, 16, 4000, 40000, p1) },
-          ],
-        },
-        {
-          id: 'pool-2',
-          name: 'Liquidity Pool 2',
-          status: 'closed',
-          openedAt: '2026-04-01',
-          closedAt: '2026-07-31',
-          months: [
-            { monthKey: '2026-04', label: 'April 2026', initialValue: 15000, finalValue: 15900, currentValue: null, generatedUsd: 900, generatedPct: 6.00, withdrawals: 0,   isCurrent: false, days: makeDays(2026, 4, 900, 15000, p2) },
-            { monthKey: '2026-05', label: 'May 2026',   initialValue: 15900, finalValue: 16700, currentValue: null, generatedUsd: 800, generatedPct: 5.03, withdrawals: 500, isCurrent: false, days: makeDays(2026, 5, 800, 15900, p2) },
-            { monthKey: '2026-06', label: 'June 2026',  initialValue: 16200, finalValue: 17100, currentValue: null, generatedUsd: 900, generatedPct: 5.56, withdrawals: 0,   isCurrent: false, days: makeDays(2026, 6, 900, 16200, p2) },
-            { monthKey: '2026-07', label: 'July 2026',  initialValue: 17100, finalValue: 18000, currentValue: null, generatedUsd: 900, generatedPct: 5.26, withdrawals: 0,   isCurrent: false, days: makeDays(2026, 7, 900, 17100, p2) },
-          ],
-        },
-      ],
+      pools: makePools(),
     },
   },
 };
 
 store.addUser = function (username, password) {
-  const id = uuidv4();
   const user = {
-    id,
+    id: uuidv4(),
     username,
     passwordHash: bcrypt.hashSync(password, SALT),
     isAdmin: false,
@@ -124,11 +501,11 @@ store.addUser = function (username, password) {
 };
 
 store.findUser = function (username) {
-  return store.users.find((u) => u.username === username) || null;
+  return store.users.find(u => u.username === username) || null;
 };
 
 store.removeUser = function (id) {
-  const idx = store.users.findIndex((u) => u.id === id);
+  const idx = store.users.findIndex(u => u.id === id);
   if (idx === -1) return false;
   const user = store.users[idx];
   store.users.splice(idx, 1);
@@ -141,9 +518,9 @@ store.getWallet = function (username) {
 };
 
 store.updatePoolName = function (username, poolId, name) {
-  const wallet = store.wallets[username];
-  if (!wallet) return false;
-  const pool = wallet.pools.find((p) => p.id === poolId);
+  const w = store.wallets[username];
+  if (!w) return false;
+  const pool = w.pools.find(p => p.id === poolId);
   if (!pool) return false;
   pool.name = name;
   return true;
