@@ -384,6 +384,7 @@ function OverviewView({ wallet, onSelectPool, filter, setFilter, sort, setSort }
     pools = [...pools];
     if (sort === 'volume') pools.sort((a, b) => getPoolValue(b) - getPoolValue(a));
     if (sort === 'return') pools.sort((a, b) => getPoolReturn(b) - getPoolReturn(a));
+    if (sort === 'name')   pools.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
     return pools;
   }, [wallet.pools, filter, sort]);
 
@@ -448,6 +449,7 @@ function OverviewView({ wallet, onSelectPool, filter, setFilter, sort, setSort }
               onChange={setSort}
               options={[
                 { value: 'default', label: 'Default' },
+                { value: 'name',    label: 'A–Z' },
                 { value: 'volume',  label: 'Volume' },
                 { value: 'return',  label: 'Return' },
               ]}
