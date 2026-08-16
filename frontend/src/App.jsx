@@ -1,23 +1,30 @@
-import { useState } from 'react'
-import Header from './components/layout/Header'
-import TabNav from './components/layout/TabNav'
-import MarketDashboard from './components/layout/MarketDashboard'
-import DualTable from './components/dual/DualTable'
-import MeteoraTable from './components/meteora/MeteoraTable'
+import { useState, useEffect } from 'react';
+import LoginPage from './pages/LoginPage';
+import AdminPage from './pages/AdminPage';
+import WalletDashboard from './pages/WalletDashboard';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('dual')
+  const [user, setUser] = useState(null);
+  const [ready, setReady] = useState(false);
 
-  return (
-    <div className="min-h-screen bg-slate-950 flex flex-col">
-      <Header />
-      <MarketDashboard />
-      <TabNav active={activeTab} onChange={setActiveTab} />
+  useEffect(() => {
+    const stored = localStorage.getItem('wt_user');
+    const token  = localStorage.getItem('wt_token');
+    if (stored && token) {
+      try { setUser(JSON.parse(stored)); } catch { /* ignore */ }
+    }
+    setReady(true);
+  }, []);
 
-      <main className="flex-1">
-        {activeTab === 'dual' && <DualTable />}
-        {activeTab === 'meteora' && <MeteoraTable />}
-      </main>
-    </div>
-  )
+  if (!ready) return null;
+
+  if (!user) {
+    return <LoginPage onLogin={(u) => setUser(u)} />;
+  }
+
+  if (user.isAdmin) {
+    return <AdminPage onLogout={() => setUser(null)} />;
+  }
+
+  return <WalletDashboard username={user.username} onLogout={() => setUser(null)} />;
 }

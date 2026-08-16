@@ -1,3 +1,2 @@
 @echo off
-cd /d "%~dp0"
-claude --dangerously-skip-permissions
+start powershell -NoExit -Command "Set-Location '%~dp0'; claude --dangerously-skip-permissions"
