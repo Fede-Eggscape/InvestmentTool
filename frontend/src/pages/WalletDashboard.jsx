@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import client from '../api/client';
 
 /* ─── Formatters ─── */
@@ -334,9 +334,60 @@ function PoolCard({ pool, onClick }) {
   );
 }
 
+/* ─── Pool helpers ─── */
+function getCurrentMonth(pool) {
+  return pool.months.find((m) => m.isCurrent) || pool.months[pool.months.length - 1] || null;
+}
+function getPoolValue(pool) {
+  const m = getCurrentMonth(pool);
+  if (!m) return 0;
+  return m.isCurrent ? (m.currentValue ?? 0) : (m.finalValue ?? 0);
+}
+function getPoolReturn(pool) {
+  const m = getCurrentMonth(pool);
+  return m ? (m.generatedPct ?? 0) : 0;
+}
+
+/* ─── Segmented control ─── */
+function Segmented({ options, value, onChange }) {
+  return (
+    <div className="inline-flex items-center bg-slate-800/60 border border-slate-700/50 rounded-lg p-0.5">
+      {options.map((opt) => (
+        <button
+          key={opt.value}
+          onClick={() => onChange(opt.value)}
+          className={`px-2.5 py-1 text-xs rounded transition-all whitespace-nowrap ${
+            value === opt.value
+              ? 'bg-slate-700 text-slate-100 font-medium shadow-sm'
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /* ─── Overview ─── */
 function OverviewView({ wallet, onSelectPool }) {
   const totalUSD = wallet.assets.reduce((s, a) => s + a.valueUSD, 0);
+  const [filter, setFilter] = useState('all');
+  const [sort, setSort]     = useState('default');
+
+  const displayedPools = useMemo(() => {
+    let pools = wallet.pools;
+    if (filter === 'open')   pools = pools.filter((p) => p.status === 'open');
+    if (filter === 'closed') pools = pools.filter((p) => p.status === 'closed');
+    pools = [...pools];
+    if (sort === 'volume') pools.sort((a, b) => getPoolValue(b) - getPoolValue(a));
+    if (sort === 'return') pools.sort((a, b) => getPoolReturn(b) - getPoolReturn(a));
+    return pools;
+  }, [wallet.pools, filter, sort]);
+
+  const total = wallet.pools.length;
+  const shown = displayedPools.length;
+  const countLabel = shown === total ? `${total}` : `${shown} of ${total}`;
 
   return (
     <div className="space-y-8">
@@ -364,14 +415,38 @@ function OverviewView({ wallet, onSelectPool }) {
 
       {/* Pools */}
       <section>
-        <h2 className="text-slate-300 font-semibold text-sm uppercase tracking-wider mb-3">
-          Liquidity Pools ({wallet.pools.length})
-        </h2>
-        {wallet.pools.length === 0 ? (
+        <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
+          <h2 className="text-slate-300 font-semibold text-sm uppercase tracking-wider">
+            Liquidity Pools ({countLabel})
+          </h2>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Segmented
+              value={filter}
+              onChange={setFilter}
+              options={[
+                { value: 'all',    label: 'All' },
+                { value: 'open',   label: 'Open' },
+                { value: 'closed', label: 'Closed' },
+              ]}
+            />
+            <Segmented
+              value={sort}
+              onChange={setSort}
+              options={[
+                { value: 'default', label: 'Default' },
+                { value: 'volume',  label: 'Volume' },
+                { value: 'return',  label: 'Return' },
+              ]}
+            />
+          </div>
+        </div>
+        {total === 0 ? (
           <p className="text-slate-500 text-sm">No liquidity pools yet.</p>
+        ) : shown === 0 ? (
+          <p className="text-slate-500 text-sm">No pools match the selected filter.</p>
         ) : (
           <div className="space-y-3">
-            {wallet.pools.map((pool) => (
+            {displayedPools.map((pool) => (
               <PoolCard key={pool.id} pool={pool} onClick={() => onSelectPool(pool)} />
             ))}
           </div>
