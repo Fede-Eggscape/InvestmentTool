@@ -2,17 +2,20 @@ const bcrypt = require('bcryptjs');
 const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
+const db = require('./services/db');
 
 const SALT = 10;
 const TODAY = '2026-08-16';
 
 /* ─── Persistence layer ────────────────────
- * Pool-name edits are saved to backend/data/overrides.json so they
- * survive server restarts. Structure: { [walletAddr]: { [poolId]: { name } } }
+ * Pool-name edits are saved in two places:
+ *   1. Postgres (via services/db.js) — when DATABASE_URL is set. Truly
+ *      persistent across redeploys and spin-downs.
+ *   2. backend/data/overrides.json — always. Works for local dev and as
+ *      a fallback when the DB is not configured or temporarily down.
  *
- * NOTE on Render free tier: the file survives across restarts within the
- * same container but resets on redeploys / spin-downs (after 15 min idle).
- * For true persistence, set OVERRIDES_PATH to a mounted disk or use a DB.
+ * On startup we merge both sources (DB takes precedence). On update we
+ * write to both.
  */
 const OVERRIDES_PATH = process.env.OVERRIDES_PATH ||
                         path.join(__dirname, 'data', 'overrides.json');
@@ -659,14 +662,33 @@ const store = {
   },
 };
 
-/* Apply any persisted pool-name overrides to the freshly-seeded pools */
-for (const [username, walletOv] of Object.entries(overrides)) {
-  const wallet = store.wallets[username];
-  if (!wallet) continue;
-  for (const [poolId, data] of Object.entries(walletOv)) {
-    const pool = wallet.pools.find(p => p.id === poolId);
-    if (pool && data.name) pool.name = data.name;
+function applyOverridesToPools(source) {
+  for (const [username, walletOv] of Object.entries(source)) {
+    const wallet = store.wallets[username];
+    if (!wallet) continue;
+    for (const [poolId, data] of Object.entries(walletOv)) {
+      const pool = wallet.pools.find(p => p.id === poolId);
+      if (pool && data.name) pool.name = data.name;
+    }
   }
+}
+
+/* Apply file-based overrides synchronously at startup */
+applyOverridesToPools(overrides);
+
+/* If a Postgres DB is configured, load overrides from there too and
+ * merge them on top (DB wins over file). This is async so any request
+ * received in the first ~1s uses only the file-based overrides. */
+if (db.enabled) {
+  (async () => {
+    await db.init();
+    const dbOv = await db.loadAllOverrides();
+    for (const [username, walletOv] of Object.entries(dbOv)) {
+      if (!overrides[username]) overrides[username] = {};
+      Object.assign(overrides[username], walletOv);
+    }
+    applyOverridesToPools(dbOv);
+  })().catch(err => console.error('[store] DB startup sync failed:', err.message));
 }
 
 store.addUser = function (username, password) {
@@ -711,6 +733,13 @@ store.updatePoolName = function (username, poolId, name) {
   if (!overrides[username][poolId]) overrides[username][poolId] = {};
   overrides[username][poolId].name = name;
   saveOverrides(overrides);
+
+  // Fire-and-forget DB persistence — don't block the response on it
+  if (db.enabled) {
+    db.saveOverride(username, poolId, name).catch(err =>
+      console.error('[store] DB save failed:', err.message)
+    );
+  }
 
   return true;
 };
