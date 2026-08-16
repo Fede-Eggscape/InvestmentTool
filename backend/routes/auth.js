@@ -19,13 +19,11 @@ router.post('/login', (req, res) => {
   }
 
   if (!user.isPreloaded && !user.isAdmin) {
-    const elapsed = Date.now() - new Date(user.createdAt).getTime();
+    const createdMs = new Date(user.createdAt).getTime();
     const waitMs = WAIT_HOURS * 3600 * 1000;
-    if (elapsed < waitMs) {
-      const remaining = waitMs - elapsed;
-      const hoursLeft = Math.floor(remaining / 3600000);
-      const minutesLeft = Math.floor((remaining % 3600000) / 60000);
-      return res.json({ status: 'pending', hoursLeft, minutesLeft, username });
+    if (Date.now() - createdMs < waitMs) {
+      const activatesAt = new Date(createdMs + waitMs).toISOString();
+      return res.json({ status: 'pending', activatesAt, username });
     }
   }
 

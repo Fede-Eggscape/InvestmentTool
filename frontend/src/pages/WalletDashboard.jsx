@@ -20,6 +20,21 @@ const fmtQty = (n) => {
   return n.toFixed(6);
 };
 
+/* Cycle length is 30 days: cycle starts on day N, closes on day N+29 */
+function addDays(dateStr, days) {
+  const d = new Date(dateStr + 'T12:00:00Z');
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().split('T')[0];
+}
+function fmtShortDate(dateStr) {
+  return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+function getNextClose(pool) {
+  if (pool.status !== 'open') return null;
+  const cur = pool.months.find(m => m.isCurrent);
+  return cur ? addDays(cur.monthKey, 29) : null;
+}
+
 /* ─── Pencil icon ─── */
 function PencilIcon() {
   return (
@@ -247,9 +262,12 @@ function PoolDetailView({ pool, onBack, onPoolNameSave }) {
       <div className="flex items-start justify-between gap-4 mb-5">
         <div>
           <PoolNameEditor poolId={pool.id} name={pool.name} onSave={onPoolNameSave} />
-          <div className="flex items-center gap-2 mt-1.5">
+          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
             <StatusBadge pool={pool} />
             <span className="text-slate-500 text-xs">{pool.status === 'open' ? `Since ${pool.openedAt}` : `Closed ${pool.closedAt}`}</span>
+            {getNextClose(pool) && (
+              <span className="text-amber-400/80 text-xs">· Closes {fmtShortDate(getNextClose(pool))}</span>
+            )}
           </div>
         </div>
       </div>
@@ -300,6 +318,7 @@ function PoolCard({ pool, onClick }) {
   const value = currentMonth
     ? (currentMonth.isCurrent ? currentMonth.currentValue : currentMonth.finalValue)
     : null;
+  const nextClose = getNextClose(pool);
 
   return (
     <button
@@ -308,11 +327,14 @@ function PoolCard({ pool, onClick }) {
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
             <StatusBadge pool={pool} />
             <span className="text-slate-500 text-xs">
               {pool.status === 'open' ? `Since ${pool.openedAt}` : `Closed ${pool.closedAt}`}
             </span>
+            {nextClose && (
+              <span className="text-amber-400/80 text-xs">· Closes {fmtShortDate(nextClose)}</span>
+            )}
           </div>
           <div className="text-slate-100 font-semibold text-base">{pool.name}</div>
         </div>
