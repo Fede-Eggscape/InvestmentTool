@@ -30,9 +30,14 @@ if (isProd) {
   const frontendDist = path.join(__dirname, '../frontend/dist');
   if (fs.existsSync(frontendDist)) {
     app.use(express.static(frontendDist));
+    app.use('/api/*', (req, res) => {
+      res.status(404).json({ error: 'API endpoint not found' });
+    });
     app.get('*', (req, res) => {
       res.sendFile(path.join(frontendDist, 'index.html'));
     });
+  } else {
+    console.warn('[SERVER] frontend/dist not found — static files will not be served');
   }
 }
 
