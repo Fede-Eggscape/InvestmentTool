@@ -492,12 +492,11 @@ const store = {
     },
   ],
   wallets: {
+    // Assets are fetched live from Solana RPC when the username is a
+    // valid Solana address; the array here is just a placeholder.
     [WALLET_ADDR]: {
-      assets: [
-        { name: 'SOL',  quantity: 80,    valueUSD: 14800 },
-        { name: 'USDC', quantity: 32000, valueUSD: 32000 },
-      ],
-      pools: makePools(),
+      assets: [],
+      pools:  makePools(),
     },
   },
 };

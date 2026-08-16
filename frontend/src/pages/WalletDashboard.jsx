@@ -396,23 +396,35 @@ function OverviewView({ wallet, onSelectPool, filter, setFilter, sort, setSort }
       {/* Assets */}
       <section>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-slate-300 font-semibold text-sm uppercase tracking-wider">Assets</h2>
+          <h2 className="text-slate-300 font-semibold text-sm uppercase tracking-wider">
+            Assets <span className="text-slate-500 text-xs normal-case tracking-normal ml-1">on-chain</span>
+          </h2>
           <span className="text-slate-100 font-bold text-lg">{fmtUSD(totalUSD)}</span>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {wallet.assets.map((asset, i) => (
-            <div key={i} className="bg-slate-900 border border-slate-800 rounded-xl px-5 py-4 flex items-center justify-between">
-              <div>
-                <div className="text-slate-400 text-xs mb-0.5 uppercase tracking-wider">{asset.name}</div>
-                <div className="text-slate-100 font-bold text-lg">{fmtUSD(asset.valueUSD)}</div>
+        {wallet.assetsError ? (
+          <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-sm rounded-xl px-5 py-3">
+            {wallet.assetsError}
+          </div>
+        ) : wallet.assets.length === 0 ? (
+          <div className="bg-slate-900 border border-slate-800 text-slate-500 text-sm rounded-xl px-5 py-4">
+            No tokens found in this wallet.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {wallet.assets.map((asset, i) => (
+              <div key={i} className="bg-slate-900 border border-slate-800 rounded-xl px-5 py-4 flex items-center justify-between">
+                <div>
+                  <div className="text-slate-400 text-xs mb-0.5 uppercase tracking-wider">{asset.name}</div>
+                  <div className="text-slate-100 font-bold text-lg">{fmtUSD(asset.valueUSD)}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-slate-500 text-xs mb-0.5">Quantity</div>
+                  <div className="text-slate-300 font-mono text-sm">{fmtQty(asset.quantity)}</div>
+                </div>
               </div>
-              <div className="text-right">
-                <div className="text-slate-500 text-xs mb-0.5">Quantity</div>
-                <div className="text-slate-300 font-mono text-sm">{fmtQty(asset.quantity)}</div>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </section>
 
       {/* Pools */}
