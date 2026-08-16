@@ -124,7 +124,7 @@ function PoolNameEditor({ poolId, name, onSave }) {
   );
 }
 
-/* ─── Month row ─── */
+/* ─── Month row (desktop = grid, mobile = stacked card) ─── */
 const MONTH_GRID = 'grid grid-cols-[minmax(0,1fr)_80px_75px_75px_75px_16px] items-center gap-4';
 
 function MonthRow({ month, onClick }) {
@@ -132,21 +132,49 @@ function MonthRow({ month, onClick }) {
   return (
     <button
       onClick={onClick}
-      className={`w-full ${MONTH_GRID} px-5 py-3.5 hover:bg-slate-800/60 transition-colors text-left group text-sm`}
+      className="w-full px-4 sm:px-5 py-3.5 hover:bg-slate-800/60 transition-colors text-left group"
     >
-      <div className="flex items-center gap-2 min-w-0">
-        <span className="text-slate-300 font-medium truncate">{month.label}</span>
-        {month.isCurrent && (
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-900/50 text-emerald-400 border border-emerald-800/50 flex-shrink-0">Current</span>
+      {/* Mobile card layout — hidden on sm+ */}
+      <div className="sm:hidden">
+        <div className="flex items-center justify-between gap-2 mb-1.5">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-slate-300 font-medium text-sm truncate">{month.label}</span>
+            {month.isCurrent && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-900/50 text-emerald-400 border border-emerald-800/50 flex-shrink-0">Now</span>
+            )}
+          </div>
+          <span className="text-slate-600 group-hover:text-slate-400 transition-colors flex-shrink-0"><ChevronRight /></span>
+        </div>
+        <div className="flex items-center justify-between text-xs">
+          <div className="flex items-center gap-3 tabular-nums">
+            <span className="text-emerald-400 font-medium">{fmtPct(month.generatedPct)}</span>
+            <span className="text-emerald-300">{fmtUSD(month.generatedUsd)}</span>
+          </div>
+          <span className="text-slate-400 tabular-nums">{fmtUSD(value)}</span>
+        </div>
+        {month.withdrawals > 0 && (
+          <div className="text-amber-400/80 text-[11px] mt-1 tabular-nums">
+            Withdrew {fmtUSD(month.withdrawals)}
+          </div>
         )}
       </div>
-      <span className="text-amber-400 text-xs text-right tabular-nums">
-        {month.withdrawals > 0 ? fmtUSD(month.withdrawals) : <span className="text-slate-700">—</span>}
-      </span>
-      <span className="text-emerald-400 font-medium text-right tabular-nums">{fmtPct(month.generatedPct)}</span>
-      <span className="text-emerald-300 font-medium text-right tabular-nums">{fmtUSD(month.generatedUsd)}</span>
-      <span className="text-slate-400 text-right tabular-nums">{fmtUSD(value)}</span>
-      <span className="text-slate-600 group-hover:text-slate-400 transition-colors flex justify-end"><ChevronRight /></span>
+
+      {/* Desktop grid layout — hidden below sm */}
+      <div className="hidden sm:grid grid-cols-[minmax(0,1fr)_80px_75px_75px_75px_16px] items-center gap-4 text-sm">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-slate-300 font-medium truncate">{month.label}</span>
+          {month.isCurrent && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-900/50 text-emerald-400 border border-emerald-800/50 flex-shrink-0">Current</span>
+          )}
+        </div>
+        <span className="text-amber-400 text-xs text-right tabular-nums">
+          {month.withdrawals > 0 ? fmtUSD(month.withdrawals) : <span className="text-slate-700">—</span>}
+        </span>
+        <span className="text-emerald-400 font-medium text-right tabular-nums">{fmtPct(month.generatedPct)}</span>
+        <span className="text-emerald-300 font-medium text-right tabular-nums">{fmtUSD(month.generatedUsd)}</span>
+        <span className="text-slate-400 text-right tabular-nums">{fmtUSD(value)}</span>
+        <span className="text-slate-600 group-hover:text-slate-400 transition-colors flex justify-end"><ChevronRight /></span>
+      </div>
     </button>
   );
 }
@@ -287,7 +315,7 @@ function PoolDetailView({ pool, onBack, onPoolNameSave }) {
         <div className="px-5 py-3.5 border-b border-slate-800">
           <h3 className="text-slate-300 font-medium text-sm">Monthly History</h3>
         </div>
-        <div className={`${MONTH_GRID} px-5 py-2 border-b border-slate-800/60 text-slate-500 text-[10px] uppercase tracking-wider`}>
+        <div className="hidden sm:grid grid-cols-[minmax(0,1fr)_80px_75px_75px_75px_16px] items-center gap-4 px-5 py-2 border-b border-slate-800/60 text-slate-500 text-[10px] uppercase tracking-wider">
           <span>Month</span>
           <span className="text-right">Withdrawal</span>
           <span className="text-right">Return %</span>
@@ -543,7 +571,7 @@ export default function WalletDashboard({ username, onLogout }) {
     <div className="min-h-screen bg-slate-950">
       {/* Header */}
       <header className="border-b border-slate-800 bg-slate-900 sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
               <svg className="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -567,7 +595,7 @@ export default function WalletDashboard({ username, onLogout }) {
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-6 py-8">
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         {loading && (
           <div className="flex items-center justify-center py-20 text-slate-500 text-sm">Loading wallet data…</div>
         )}
