@@ -1,8 +1,44 @@
 const bcrypt = require('bcryptjs');
+const fs = require('fs');
+const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 
 const SALT = 10;
 const TODAY = '2026-08-16';
+
+/* ─── Persistence layer ────────────────────
+ * Pool-name edits are saved to backend/data/overrides.json so they
+ * survive server restarts. Structure: { [walletAddr]: { [poolId]: { name } } }
+ *
+ * NOTE on Render free tier: the file survives across restarts within the
+ * same container but resets on redeploys / spin-downs (after 15 min idle).
+ * For true persistence, set OVERRIDES_PATH to a mounted disk or use a DB.
+ */
+const OVERRIDES_PATH = process.env.OVERRIDES_PATH ||
+                        path.join(__dirname, 'data', 'overrides.json');
+
+function loadOverrides() {
+  try {
+    if (fs.existsSync(OVERRIDES_PATH)) {
+      return JSON.parse(fs.readFileSync(OVERRIDES_PATH, 'utf8'));
+    }
+  } catch (err) {
+    console.error('[store] Failed to load overrides:', err.message);
+  }
+  return {};
+}
+
+function saveOverrides(data) {
+  try {
+    const dir = path.dirname(OVERRIDES_PATH);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(OVERRIDES_PATH, JSON.stringify(data, null, 2));
+  } catch (err) {
+    console.error('[store] Failed to save overrides:', err.message);
+  }
+}
+
+const overrides = loadOverrides();
 
 /* ─── Date helpers ─────────────────────────── */
 function addDays(dateStr, days) {
@@ -466,6 +502,128 @@ function makePools() {
     });
   }
 
+  /* Pool 15 — May 4, 2026 to present (OPEN) — pairs with Pool 16 and spawned Pool 17 */
+  {
+    // May-Jun: +28%, withdraw $1.5K
+    const i1 = 20000, p1 = 28, f1 = round2(i1 * 1.28);              // 25,600
+    const w1 = 1500;
+    const i2 = round2(f1 - w1);                                     // 24,100
+    // Jun-Jul: +23.5%, withdraw $1.5K + excess above $20K → Pool 17
+    const p2 = 23.5, f2 = round2(i2 * 1.235);                       // 29,763.5
+    const excessTo17_p15 = round2(f2 - 1500 - 20000);               //  8,263.5
+    const w2 = round2(1500 + excessTo17_p15);                       //  9,763.5
+    // Jul-Aug: +25%, withdraw all profits
+    const i3 = 20000, p3 = 25, f3 = round2(i3 * 1.25);              // 25,000
+    const w3 = round2(f3 - 20000);                                  //  5,000
+    // Aug-current: partial cycle so far
+    const i4 = 20000, p4 = 10.5, cv4 = round2(i4 * 1.105);          // 22,100
+
+    pools.push({
+      id: 'pool-15', name: 'Liquidity Pool 15', status: 'open',
+      openedAt: '2026-05-04', closedAt: null,
+      months: [
+        buildMonth({
+          startDate: '2026-05-04', endDate: '2026-06-03',
+          label: 'May 4 – Jun 3, 2026',
+          initialValue: i1, finalValue: f1, generatedPct: p1,
+          withdrawals: w1,
+          pairs: ['SOL/USDC', 'JitoSOL/SOL'], negativeBias: 0.15,
+        }),
+        buildMonth({
+          startDate: '2026-06-04', endDate: '2026-07-03',
+          label: 'Jun 4 – Jul 3, 2026',
+          initialValue: i2, finalValue: f2, generatedPct: p2,
+          withdrawals: w2,
+          pairs: ['JUP/USDC', 'SOL/USDC'], negativeBias: 0.15,
+        }),
+        buildMonth({
+          startDate: '2026-07-04', endDate: '2026-08-03',
+          label: 'Jul 4 – Aug 3, 2026',
+          initialValue: i3, finalValue: f3, generatedPct: p3,
+          withdrawals: w3,
+          pairs: ['PYTH/USDC', 'JTO/USDC'], negativeBias: 0.15,
+        }),
+        buildMonth({
+          startDate: '2026-08-04', endDate: null,
+          label: currentLabel('2026-08-04'),
+          initialValue: i4, currentValue: cv4, generatedPct: p4,
+          isCurrent: true,
+          pairs: ['SOL/USDC', 'ETH/USDC'], negativeBias: 0.30,
+        }),
+      ],
+    });
+  }
+
+  /* Pool 16 — May 4, 2026 to present (OPEN) — pairs with Pool 15 and spawned Pool 17 */
+  {
+    const i1 = 20000, p1 = 28.2, f1 = round2(i1 * 1.282);           // 25,640
+    const w1 = 1500;
+    const i2 = round2(f1 - w1);                                     // 24,140
+    const p2 = 23.7, f2 = round2(i2 * 1.237);                       // 29,861.18
+    const excessTo17_p16 = round2(f2 - 1500 - 20000);               //  8,361.18
+    const w2 = round2(1500 + excessTo17_p16);                       //  9,861.18
+    const i3 = 20000, p3 = 24.3, f3 = round2(i3 * 1.243);           // 24,860
+    const w3 = round2(f3 - 20000);                                  //  4,860
+    const i4 = 20000, p4 = 9.8, cv4 = round2(i4 * 1.098);           // 21,960
+
+    pools.push({
+      id: 'pool-16', name: 'Liquidity Pool 16', status: 'open',
+      openedAt: '2026-05-04', closedAt: null,
+      months: [
+        buildMonth({
+          startDate: '2026-05-04', endDate: '2026-06-03',
+          label: 'May 4 – Jun 3, 2026',
+          initialValue: i1, finalValue: f1, generatedPct: p1,
+          withdrawals: w1,
+          pairs: ['BTC/USDT', 'WBTC/USDC'], negativeBias: 0.15,
+        }),
+        buildMonth({
+          startDate: '2026-06-04', endDate: '2026-07-03',
+          label: 'Jun 4 – Jul 3, 2026',
+          initialValue: i2, finalValue: f2, generatedPct: p2,
+          withdrawals: w2,
+          pairs: ['ETH/USDC', 'BTC/USDT'], negativeBias: 0.15,
+        }),
+        buildMonth({
+          startDate: '2026-07-04', endDate: '2026-08-03',
+          label: 'Jul 4 – Aug 3, 2026',
+          initialValue: i3, finalValue: f3, generatedPct: p3,
+          withdrawals: w3,
+          pairs: ['WBTC/USDC', 'PYTH/USDC'], negativeBias: 0.15,
+        }),
+        buildMonth({
+          startDate: '2026-08-04', endDate: null,
+          label: currentLabel('2026-08-04'),
+          initialValue: i4, currentValue: cv4, generatedPct: p4,
+          isCurrent: true,
+          pairs: ['BTC/USDT', 'JUP/USDC'], negativeBias: 0.30,
+        }),
+      ],
+    });
+  }
+
+  /* Pool 17 — Jul 4 to Aug 3, 2026 (CLOSED) — spawned from Pool 15/16 excess */
+  {
+    // Excess from each pool's Jun-Jul cycle above $20K after $1.5K withdrawal:
+    const excessP15 = round2(round2(20000 * 1.28 - 1500) * 1.235 - 1500 - 20000);  // 8,263.5
+    const excessP16 = round2(round2(20000 * 1.282 - 1500) * 1.237 - 1500 - 20000); // 8,361.18
+    const init = round2(excessP15 + excessP16);                                     // 16,624.68
+    const pct = 22;
+    const final = round2(init * (1 + pct / 100));                                   // 20,282.11
+
+    pools.push({
+      id: 'pool-17', name: 'Liquidity Pool 17', status: 'closed',
+      openedAt: '2026-07-04', closedAt: '2026-08-03',
+      months: [buildMonth({
+        startDate: '2026-07-04', endDate: '2026-08-03',
+        label: 'Jul 4 – Aug 3, 2026',
+        initialValue: init, finalValue: final, generatedPct: pct,
+        withdrawals: final,
+        pairs: ['WIF/USDC', 'POPCAT/USDC', 'BONK/SOL'], negativeBias: 0.15,
+      })],
+    });
+  }
+
   return pools;
 }
 
@@ -500,6 +658,16 @@ const store = {
     },
   },
 };
+
+/* Apply any persisted pool-name overrides to the freshly-seeded pools */
+for (const [username, walletOv] of Object.entries(overrides)) {
+  const wallet = store.wallets[username];
+  if (!wallet) continue;
+  for (const [poolId, data] of Object.entries(walletOv)) {
+    const pool = wallet.pools.find(p => p.id === poolId);
+    if (pool && data.name) pool.name = data.name;
+  }
+}
 
 store.addUser = function (username, password) {
   const user = {
@@ -538,6 +706,12 @@ store.updatePoolName = function (username, poolId, name) {
   const pool = w.pools.find(p => p.id === poolId);
   if (!pool) return false;
   pool.name = name;
+
+  if (!overrides[username]) overrides[username] = {};
+  if (!overrides[username][poolId]) overrides[username][poolId] = {};
+  overrides[username][poolId].name = name;
+  saveOverrides(overrides);
+
   return true;
 };
 
