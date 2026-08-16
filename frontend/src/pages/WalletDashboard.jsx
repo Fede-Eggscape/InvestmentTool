@@ -374,10 +374,8 @@ function Segmented({ options, value, onChange }) {
 }
 
 /* ─── Overview ─── */
-function OverviewView({ wallet, onSelectPool }) {
+function OverviewView({ wallet, onSelectPool, filter, setFilter, sort, setSort }) {
   const totalUSD = wallet.assets.reduce((s, a) => s + a.valueUSD, 0);
-  const [filter, setFilter] = useState('all');
-  const [sort, setSort]     = useState('default');
 
   const displayedPools = useMemo(() => {
     let pools = wallet.pools;
@@ -462,10 +460,12 @@ function OverviewView({ wallet, onSelectPool }) {
 
 /* ─── Main WalletDashboard ─── */
 export default function WalletDashboard({ username, onLogout }) {
-  const [wallet, setWallet]         = useState(null);
-  const [loading, setLoading]       = useState(true);
-  const [error, setError]           = useState('');
+  const [wallet, setWallet]             = useState(null);
+  const [loading, setLoading]           = useState(true);
+  const [error, setError]               = useState('');
   const [selectedPool, setSelectedPool] = useState(null);
+  const [filter, setFilter]             = useState('open');
+  const [sort, setSort]                 = useState('default');
 
   async function fetchWallet() {
     try {
@@ -546,7 +546,12 @@ export default function WalletDashboard({ username, onLogout }) {
               onPoolNameSave={handlePoolNameSave}
             />
           ) : (
-            <OverviewView wallet={wallet} onSelectPool={handleSelectPool} />
+            <OverviewView
+              wallet={wallet}
+              onSelectPool={handleSelectPool}
+              filter={filter} setFilter={setFilter}
+              sort={sort}     setSort={setSort}
+            />
           )
         )}
       </main>
