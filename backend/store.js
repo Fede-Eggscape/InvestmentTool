@@ -97,14 +97,6 @@ function buildMonth({
 function round2(n) { return Math.round(n * 100) / 100; }
 
 /* ─── Pool builder ─────────────────────────── */
-const PAIRS = {
-  sol_eth:     ['SOL/USDC', 'ETH/USDC'],
-  sol_eth_btc: ['SOL/USDC', 'ETH/USDC', 'BTC/USDT'],
-  btc_eth:     ['BTC/USDT', 'ETH/USDC'],
-  sol_btc:     ['SOL/USDC', 'BTC/USDT'],
-  eth_btc:     ['ETH/USDC', 'BTC/USDT'],
-};
-
 function makePools() {
   const pools = [];
 
@@ -120,15 +112,15 @@ function makePools() {
         label: 'Aug 4 – Sep 3, 2025',
         initialValue: init, finalValue: final,
         generatedPct: pct, withdrawals: final,
-        pairs: PAIRS.sol_eth_btc, negativeBias: 0.15,
+        pairs: ['SOL/USDC', 'WIF/USDC', 'JTO/USDC'], negativeBias: 0.15,
       })],
     });
   }
 
   /* Pool 2 — Sep 6 to Nov 5, 2025 (CLOSED) — 2 cycles, all withdrawn on close */
   {
-    const i1 = 20000, p1 = 15.3, f1 = i1 * 1.153;      // 23,060
-    const i2 = f1,    p2 = 19.7, f2 = i2 * 1.197;      // 27,602.82
+    const i1 = 20000, p1 = 15.3, f1 = i1 * 1.153;
+    const i2 = f1,    p2 = 19.7, f2 = i2 * 1.197;
     pools.push({
       id: 'pool-2', name: 'Liquidity Pool 2', status: 'closed',
       openedAt: '2025-09-06', closedAt: '2025-11-05',
@@ -137,14 +129,14 @@ function makePools() {
           startDate: '2025-09-06', endDate: '2025-10-05',
           label: 'Sep 6 – Oct 5, 2025',
           initialValue: i1, finalValue: f1, generatedPct: p1,
-          pairs: PAIRS.sol_eth, negativeBias: 0.15,
+          pairs: ['SOL/USDC', 'JUP/USDC'], negativeBias: 0.15,
         }),
         buildMonth({
           startDate: '2025-10-06', endDate: '2025-11-05',
           label: 'Oct 6 – Nov 5, 2025',
           initialValue: i2, finalValue: f2, generatedPct: p2,
           withdrawals: f2,
-          pairs: PAIRS.sol_eth, negativeBias: 0.15,
+          pairs: ['ETH/USDC', 'PYTH/USDC'], negativeBias: 0.15,
         }),
       ],
     });
@@ -152,10 +144,10 @@ function makePools() {
 
   /* Pool 3 — Nov 7, 2025 to Feb 5, 2026 (CLOSED) */
   {
-    const i1 = 20000, p1 = 22,   f1 = i1 * 1.22;       // 24,400
-    const i2 = f1,    p2 = 18.5, f2 = i2 * 1.185;      // 28,914
-    const w2 = f2 - 20000;                             // 8,914 → reset to 20K
-    const i3 = 20000, p3 = 25.8, f3 = i3 * 1.258;      // 25,160
+    const i1 = 20000, p1 = 22,   f1 = i1 * 1.22;
+    const i2 = f1,    p2 = 18.5, f2 = i2 * 1.185;
+    const w2 = f2 - 20000;
+    const i3 = 20000, p3 = 25.8, f3 = i3 * 1.258;
     pools.push({
       id: 'pool-3', name: 'Liquidity Pool 3', status: 'closed',
       openedAt: '2025-11-07', closedAt: '2026-02-05',
@@ -164,32 +156,32 @@ function makePools() {
           startDate: '2025-11-07', endDate: '2025-12-06',
           label: 'Nov 7 – Dec 6, 2025',
           initialValue: i1, finalValue: f1, generatedPct: p1,
-          pairs: PAIRS.btc_eth, negativeBias: 0.15,
+          pairs: ['BTC/USDT', 'WBTC/USDC'], negativeBias: 0.15,
         }),
         buildMonth({
           startDate: '2025-12-07', endDate: '2026-01-06',
           label: 'Dec 7, 2025 – Jan 6, 2026',
           initialValue: i2, finalValue: f2, generatedPct: p2,
           withdrawals: w2,
-          pairs: PAIRS.btc_eth, negativeBias: 0.20,
+          pairs: ['SOL/USDC', 'JitoSOL/SOL'], negativeBias: 0.20,
         }),
         buildMonth({
           startDate: '2026-01-07', endDate: '2026-02-05',
           label: 'Jan 7 – Feb 5, 2026',
           initialValue: i3, finalValue: f3, generatedPct: p3,
           withdrawals: f3,
-          pairs: PAIRS.btc_eth, negativeBias: 0.15,
+          pairs: ['ETH/USDC', 'JTO/USDC'], negativeBias: 0.15,
         }),
       ],
     });
   }
 
-  /* Pool 4 — Nov 7, 2025 to Feb 5, 2026 (CLOSED) */
+  /* Pool 4 — Nov 7, 2025 to Feb 5, 2026 (CLOSED) — meme/DeFi rotation */
   {
-    const i1 = 20000, p1 = 19.3, f1 = i1 * 1.193;      // 23,860
-    const i2 = f1,    p2 = 16.2, f2 = i2 * 1.162;      // 27,725.32
+    const i1 = 20000, p1 = 19.3, f1 = i1 * 1.193;
+    const i2 = f1,    p2 = 16.2, f2 = i2 * 1.162;
     const w2 = f2 - 20000;
-    const i3 = 20000, p3 = 23.1, f3 = i3 * 1.231;      // 24,620
+    const i3 = 20000, p3 = 23.1, f3 = i3 * 1.231;
     pools.push({
       id: 'pool-4', name: 'Liquidity Pool 4', status: 'closed',
       openedAt: '2025-11-07', closedAt: '2026-02-05',
@@ -198,21 +190,21 @@ function makePools() {
           startDate: '2025-11-07', endDate: '2025-12-06',
           label: 'Nov 7 – Dec 6, 2025',
           initialValue: i1, finalValue: f1, generatedPct: p1,
-          pairs: PAIRS.sol_eth_btc, negativeBias: 0.20,
+          pairs: ['SOL/USDC', 'WIF/USDC', 'JUP/USDC'], negativeBias: 0.20,
         }),
         buildMonth({
           startDate: '2025-12-07', endDate: '2026-01-06',
           label: 'Dec 7, 2025 – Jan 6, 2026',
           initialValue: i2, finalValue: f2, generatedPct: p2,
           withdrawals: w2,
-          pairs: PAIRS.sol_eth_btc, negativeBias: 0.25,
+          pairs: ['RAY/USDC', 'PENGU/USDC', 'ORCA/USDC'], negativeBias: 0.25,
         }),
         buildMonth({
           startDate: '2026-01-07', endDate: '2026-02-05',
           label: 'Jan 7 – Feb 5, 2026',
           initialValue: i3, finalValue: f3, generatedPct: p3,
           withdrawals: f3,
-          pairs: PAIRS.sol_eth_btc, negativeBias: 0.20,
+          pairs: ['POPCAT/USDC', 'BONK/SOL', 'MEW/USDC'], negativeBias: 0.20,
         }),
       ],
     });
@@ -221,12 +213,12 @@ function makePools() {
   /* Pool 5 — Feb 19, 2026 to present (OPEN) — resets to 20K each cycle */
   {
     const cycles = [
-      { start: '2026-02-19', end: '2026-03-20', pct: 29.1, negBias: 0.15 },
-      { start: '2026-03-21', end: '2026-04-19', pct: 31.2, negBias: 0.15 },
-      { start: '2026-04-20', end: '2026-05-19', pct: 28.7, negBias: 0.15 },
-      { start: '2026-05-20', end: '2026-06-18', pct: 32.5, negBias: 0.15 },
-      { start: '2026-06-19', end: '2026-07-18', pct: 23.8, negBias: 0.30 },
-      { start: '2026-07-19', end: null,          pct: 26.7, negBias: 0.20, current: true },
+      { start: '2026-02-19', end: '2026-03-20', pct: 29.1, negBias: 0.15, pairs: ['SOL/USDC', 'ETH/USDC'] },
+      { start: '2026-03-21', end: '2026-04-19', pct: 31.2, negBias: 0.15, pairs: ['JUP/USDC', 'JTO/USDC'] },
+      { start: '2026-04-20', end: '2026-05-19', pct: 28.7, negBias: 0.15, pairs: ['SOL/USDC', 'PYTH/USDC'] },
+      { start: '2026-05-20', end: '2026-06-18', pct: 32.5, negBias: 0.15, pairs: ['ETH/USDC', 'WBTC/USDC'] },
+      { start: '2026-06-19', end: '2026-07-18', pct: 23.8, negBias: 0.30, pairs: ['JitoSOL/SOL', 'mSOL/USDC'] },
+      { start: '2026-07-19', end: null,          pct: 26.7, negBias: 0.20, pairs: ['SOL/USDC', 'JUP/USDC'], current: true },
     ];
     pools.push({
       id: 'pool-5', name: 'Liquidity Pool 5', status: 'open',
@@ -242,7 +234,7 @@ function makePools() {
           generatedPct: c.pct,
           withdrawals: c.current ? 0 : gain,
           isCurrent: !!c.current,
-          pairs: PAIRS.sol_eth, negativeBias: c.negBias,
+          pairs: c.pairs, negativeBias: c.negBias,
         });
       }),
     });
@@ -260,9 +252,33 @@ function makePools() {
       { start: '2026-07-23', end: null },
     ];
     const variants = [
-      { id: 'pool-6', name: 'Liquidity Pool 6', offset: -1.5, pairs: PAIRS.btc_eth },
-      { id: 'pool-7', name: 'Liquidity Pool 7', offset:  0,   pairs: PAIRS.sol_btc },
-      { id: 'pool-8', name: 'Liquidity Pool 8', offset: +0.6, pairs: PAIRS.sol_eth_btc },
+      // Pool 6 — BTC-heavy rotation
+      { id: 'pool-6', name: 'Liquidity Pool 6', offset: -1.5, pairsByCycle: [
+        ['BTC/USDT', 'WBTC/USDC'],
+        ['BTC/USDT', 'ETH/USDC'],
+        ['WBTC/USDC', 'JitoSOL/SOL'],
+        ['BTC/USDT', 'ORCA/USDC'],
+        ['WBTC/USDC', 'JUP/USDC'],
+        ['BTC/USDT', 'PYTH/USDC'],
+      ]},
+      // Pool 7 — SOL-focused rotation
+      { id: 'pool-7', name: 'Liquidity Pool 7', offset:  0,   pairsByCycle: [
+        ['SOL/USDC', 'BTC/USDT'],
+        ['SOL/USDC', 'JUP/USDC'],
+        ['JitoSOL/SOL', 'WIF/USDC'],
+        ['SOL/USDC', 'JTO/USDC'],
+        ['mSOL/USDC', 'INF/USDC'],
+        ['SOL/USDC', 'RAY/USDC'],
+      ]},
+      // Pool 8 — 3-pair mixed rotation (majors, DeFi, memes, LST)
+      { id: 'pool-8', name: 'Liquidity Pool 8', offset: +0.6, pairsByCycle: [
+        ['ETH/USDC', 'SOL/USDC', 'BTC/USDT'],
+        ['JUP/USDC', 'JTO/USDC', 'PYTH/USDC'],
+        ['WIF/USDC', 'POPCAT/USDC', 'BONK/SOL'],
+        ['PENGU/USDC', 'MEW/USDC', 'RAY/USDC'],
+        ['SOL/USDC', 'ETH/USDC', 'JitoSOL/SOL'],
+        ['BTC/USDT', 'WBTC/USDC', 'ORCA/USDC'],
+      ]},
     ];
     variants.forEach(v => {
       pools.push({
@@ -281,7 +297,7 @@ function makePools() {
             generatedPct: pct,
             withdrawals: isCurrent ? 0 : gain,
             isCurrent,
-            pairs: v.pairs,
+            pairs: v.pairsByCycle[i],
             negativeBias: pct < 25 ? 0.30 : 0.15,
           });
         }),
@@ -292,11 +308,11 @@ function makePools() {
   /* Pool 9 — Mar 5, 2026 to present (OPEN) */
   {
     const cycles = [
-      { start: '2026-03-05', end: '2026-04-03', pct: 27.3, negBias: 0.15 },
-      { start: '2026-04-04', end: '2026-05-03', pct: 31,   negBias: 0.15 },
-      { start: '2026-05-04', end: '2026-06-02', pct: 27.8, negBias: 0.15 },
-      { start: '2026-06-03', end: '2026-07-02', pct: 24.1, negBias: 0.30 },
-      { start: '2026-07-03', end: null,          pct: 14.3, negBias: 0.40, current: true },
+      { start: '2026-03-05', end: '2026-04-03', pct: 27.3, negBias: 0.15, pairs: ['BTC/USDT', 'ETH/USDC'] },
+      { start: '2026-04-04', end: '2026-05-03', pct: 31,   negBias: 0.15, pairs: ['JUP/USDC', 'JTO/USDC'] },
+      { start: '2026-05-04', end: '2026-06-02', pct: 27.8, negBias: 0.15, pairs: ['PYTH/USDC', 'RAY/USDC'] },
+      { start: '2026-06-03', end: '2026-07-02', pct: 24.1, negBias: 0.30, pairs: ['WBTC/USDC', 'ORCA/USDC'] },
+      { start: '2026-07-03', end: null,          pct: 14.3, negBias: 0.40, pairs: ['SOL/USDC', 'ETH/USDC'], current: true },
     ];
     pools.push({
       id: 'pool-9', name: 'Liquidity Pool 9', status: 'open',
@@ -312,7 +328,7 @@ function makePools() {
           generatedPct: c.pct,
           withdrawals: c.current ? 0 : gain,
           isCurrent: !!c.current,
-          pairs: PAIRS.btc_eth, negativeBias: c.negBias,
+          pairs: c.pairs, negativeBias: c.negBias,
         });
       }),
     });
@@ -333,14 +349,14 @@ function makePools() {
           label: 'Apr 6 – May 5, 2026',
           initialValue: i1, finalValue: f1, generatedPct: p1,
           withdrawals: w1,
-          pairs: PAIRS.sol_eth, negativeBias: 0.15,
+          pairs: ['SOL/USDC', 'JUP/USDC'], negativeBias: 0.15,
         }),
         buildMonth({
           startDate: '2026-05-06', endDate: '2026-06-05',
           label: 'May 6 – Jun 5, 2026',
           initialValue: i2, finalValue: f2, generatedPct: p2,
           withdrawals: f2,
-          pairs: PAIRS.sol_eth, negativeBias: 0.15,
+          pairs: ['JTO/USDC', 'PYTH/USDC'], negativeBias: 0.15,
         }),
       ],
     });
@@ -361,14 +377,14 @@ function makePools() {
           label: 'Apr 6 – May 5, 2026',
           initialValue: i1, finalValue: f1, generatedPct: p1,
           withdrawals: w1,
-          pairs: PAIRS.sol_btc, negativeBias: 0.15,
+          pairs: ['BTC/USDT', 'WBTC/USDC'], negativeBias: 0.15,
         }),
         buildMonth({
           startDate: '2026-05-06', endDate: '2026-06-05',
           label: 'May 6 – Jun 5, 2026',
           initialValue: i2, finalValue: f2, generatedPct: p2,
           withdrawals: f2,
-          pairs: PAIRS.sol_btc, negativeBias: 0.15,
+          pairs: ['SOL/USDC', 'JitoSOL/SOL'], negativeBias: 0.15,
         }),
       ],
     });
@@ -394,14 +410,14 @@ function makePools() {
           label: 'Jun 6 – Jul 5, 2026',
           initialValue: i1, finalValue: f1, generatedPct: p1,
           withdrawals: w1,
-          pairs: PAIRS.sol_eth, negativeBias: 0.35,
+          pairs: ['SOL/USDC', 'ETH/USDC'], negativeBias: 0.35,
         }),
         buildMonth({
           startDate: '2026-07-06', endDate: null,
           label: currentLabel('2026-07-06'),
           initialValue: i2, currentValue: cv2, generatedPct: p2,
           isCurrent: true,
-          pairs: PAIRS.sol_eth, negativeBias: 0.25,
+          pairs: ['JUP/USDC', 'PYTH/USDC'], negativeBias: 0.25,
         }),
       ],
     });
@@ -418,7 +434,7 @@ function makePools() {
         label: 'Jun 6 – Jul 5, 2026',
         initialValue: init, finalValue: final, generatedPct: pct,
         withdrawals: final,
-        pairs: PAIRS.eth_btc, negativeBias: 0.30,
+        pairs: ['ETH/USDC', 'BTC/USDT'], negativeBias: 0.30,
       })],
     });
   }
@@ -437,14 +453,14 @@ function makePools() {
           label: 'Jun 6 – Jul 5, 2026',
           initialValue: i1, finalValue: f1, generatedPct: p1,
           withdrawals: w1,
-          pairs: PAIRS.sol_btc, negativeBias: 0.15,
+          pairs: ['SOL/USDC', 'JTO/USDC'], negativeBias: 0.15,
         }),
         buildMonth({
           startDate: '2026-07-06', endDate: null,
           label: currentLabel('2026-07-06'),
           initialValue: i2, currentValue: cv2, generatedPct: p2,
           isCurrent: true,
-          pairs: PAIRS.sol_btc, negativeBias: 0.25,
+          pairs: ['BTC/USDT', 'WIF/USDC'], negativeBias: 0.25,
         }),
       ],
     });

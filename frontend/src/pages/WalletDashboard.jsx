@@ -5,9 +5,10 @@ import client from '../api/client';
 const fmtUSD = (n) => {
   if (n == null) return '—';
   const abs = Math.abs(n);
-  if (abs >= 1_000_000) return `$${(n / 1_000_000).toFixed(2)}M`;
-  if (abs >= 1_000)     return `$${(n / 1_000).toFixed(1)}K`;
-  return `$${n.toFixed(0)}`;
+  const sign = n < 0 ? '-' : '';
+  if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(2)}M`;
+  if (abs >= 1_000)     return `${sign}$${(abs / 1_000).toFixed(1)}K`;
+  return `${sign}$${abs.toFixed(0)}`;
 };
 const fmtPct = (n, showSign = true) => {
   const sign = showSign && n >= 0 ? '+' : '';
@@ -138,13 +139,16 @@ function MonthRow({ month, onClick }) {
 /* ─── Day row ─── */
 function DayRow({ day }) {
   const total = day.pairs.reduce((s, p) => s + p.usd, 0);
+  const isPos = total >= 0;
   return (
     <div className="px-5 py-3 border-b border-slate-800/50 last:border-0">
       <div className="flex items-center justify-between mb-2">
         <span className="text-slate-400 text-xs font-mono">
           {new Date(day.date + 'T12:00:00').toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' })}
         </span>
-        <span className="text-emerald-300 text-xs font-medium">+{fmtUSD(total)}</span>
+        <span className={`text-xs font-medium tabular-nums ${isPos ? 'text-emerald-300' : 'text-red-300'}`}>
+          {isPos ? '+' : ''}{fmtUSD(total)}
+        </span>
       </div>
       <div className="space-y-1">
         {day.pairs.map((p, i) => (
